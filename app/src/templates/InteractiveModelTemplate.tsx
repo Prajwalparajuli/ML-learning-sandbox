@@ -134,8 +134,8 @@ export function InteractiveModelTemplate() {
       
       {/* Header */}
       <header className="app-header sticky top-0 z-50">
-        <div className="max-w-[1600px] mx-auto px-5 py-1.5">
-          <div className="flex items-center justify-between">
+        <div className="max-w-[1600px] mx-auto px-3 sm:px-5 py-1.5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-apple-sm bg-accent/12 border border-border-subtle flex items-center justify-center">
                 <svg className="w-4.5 h-4.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -143,11 +143,11 @@ export function InteractiveModelTemplate() {
                 </svg>
               </div>
               <div>
-                <h1 className="text-lg leading-none font-semibold text-text-primary">ML Learning Sandbox</h1>
+                <h1 className="text-base sm:text-lg leading-none font-semibold text-text-primary">ML Learning Sandbox</h1>
                 <p className="hidden md:block text-xs text-text-secondary mt-0.5">Inspect, tune, compare, and export in real time</p>
               </div>
             </div>
-            <nav className="flex items-center gap-2">
+            <nav className="w-full sm:w-auto flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2">
               <div className="theme-toggle-shell">
                 <button
                   type="button"

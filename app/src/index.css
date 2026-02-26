@@ -838,6 +838,25 @@ input[type="range"]::-moz-range-thumb {
   }
 }
 
+@media (max-width: 640px) {
+  .app-header {
+    overflow-x: clip;
+  }
+
+  .app-header .theme-toggle-shell {
+    max-width: 100%;
+  }
+
+  .app-header .theme-toggle-placeholder {
+    width: 120px;
+  }
+
+  .app-header .theme-toggle-chip {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
