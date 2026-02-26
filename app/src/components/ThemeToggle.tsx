@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
-import { Moon, MonitorCog, Sun } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
 
 const themeOptions = [
   { value: 'light', label: 'Light', icon: Sun },
-  { value: 'system', label: 'System', icon: MonitorCog },
   { value: 'dark', label: 'Dark', icon: Moon },
 ] as const;
 

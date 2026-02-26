@@ -1,5 +1,5 @@
 import Plot from 'react-plotly.js';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useModelStore } from '../store/modelStore';
 import { fitRegressionModel, splitDataset } from '../lib/dataUtils';
 import { useTheme } from 'next-themes';
@@ -9,6 +9,7 @@ interface VisualizerProps {
 }
 
 export function Visualizer({ sidebarCollapsed = false }: VisualizerProps) {
+  const [cameraPreset, setCameraPreset] = useState<'front' | 'iso' | 'top'>('iso');
   const { resolvedTheme } = useTheme();
   const { data, taskMode, params, showOlsSolution, modelType, evaluationMode, testRatio, randomSeed, datasetVersion } = useModelStore();
   const isDark = resolvedTheme === 'dark';
@@ -217,6 +218,7 @@ export function Visualizer({ sidebarCollapsed = false }: VisualizerProps) {
               margin: { l: 44, r: 12, t: 16, b: 46 },
               paper_bgcolor: 'rgba(0,0,0,0)',
               plot_bgcolor: 'rgba(0,0,0,0)',
+              dragmode: 'pan',
               font: { color: 'hsl(var(--text-secondary))', family: 'Inter, sans-serif' },
               xaxis: { title: { text: 'Feature 1' }, color: axisText, gridcolor: grid, zerolinecolor: zero },
               yaxis: { title: { text: 'Feature 2' }, color: axisText, gridcolor: grid, zerolinecolor: zero },
@@ -243,16 +245,16 @@ export function Visualizer({ sidebarCollapsed = false }: VisualizerProps) {
                 font: { size: 10, color: axisText },
               }],
             }}
-            config={{ responsive: true, displayModeBar: false }}
+            config={{ responsive: true, displayModeBar: false, scrollZoom: true, doubleClick: 'reset+autosize' }}
             useResizeHandler
             style={{ width: '100%', height: '100%' }}
           />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <div className="metric-card p-2 text-xs"><span className="text-text-tertiary">TP</span><div className="text-text-primary font-semibold">{tp}</div></div>
-          <div className="metric-card p-2 text-xs"><span className="text-text-tertiary">FP</span><div className="text-text-primary font-semibold">{fp}</div></div>
-          <div className="metric-card p-2 text-xs"><span className="text-text-tertiary">TN</span><div className="text-text-primary font-semibold">{tn}</div></div>
-          <div className="metric-card p-2 text-xs"><span className="text-text-tertiary">FN</span><div className="text-text-primary font-semibold">{fn}</div></div>
+          <div className="metric-card p-2 text-xs"><span className="text-text-tertiary">True Positives <span className="text-[10px]">(TP)</span></span><div className="text-text-primary font-semibold">{tp}</div></div>
+          <div className="metric-card p-2 text-xs"><span className="text-text-tertiary">False Positives <span className="text-[10px]">(FP)</span></span><div className="text-text-primary font-semibold">{fp}</div></div>
+          <div className="metric-card p-2 text-xs"><span className="text-text-tertiary">True Negatives <span className="text-[10px]">(TN)</span></span><div className="text-text-primary font-semibold">{tn}</div></div>
+          <div className="metric-card p-2 text-xs"><span className="text-text-tertiary">False Negatives <span className="text-[10px]">(FN)</span></span><div className="text-text-primary font-semibold">{fn}</div></div>
         </div>
       </div>
     );
@@ -312,8 +314,19 @@ export function Visualizer({ sidebarCollapsed = false }: VisualizerProps) {
       });
     }
 
+    const cameraByPreset = {
+      front: { eye: { x: 0.01, y: 2.2, z: 0.6 }, up: { x: 0, y: 0, z: 1 } },
+      iso: { eye: { x: 1.3, y: 1.25, z: 0.85 }, up: { x: 0, y: 0, z: 1 } },
+      top: { eye: { x: 0.01, y: 0.01, z: 2.45 }, up: { x: 0, y: 1, z: 0 } },
+    } as const;
+
     return (
       <div className="plot-wrap code-block h-[clamp(340px,58vh,620px)] overflow-hidden">
+        <div className="absolute top-2 right-2 z-10 flex gap-1">
+          <button type="button" className={`quick-action ${cameraPreset === 'front' ? 'quick-action-active' : ''}`} onClick={() => setCameraPreset('front')}>Front</button>
+          <button type="button" className={`quick-action ${cameraPreset === 'iso' ? 'quick-action-active' : ''}`} onClick={() => setCameraPreset('iso')}>Iso</button>
+          <button type="button" className={`quick-action ${cameraPreset === 'top' ? 'quick-action-active' : ''}`} onClick={() => setCameraPreset('top')}>Top</button>
+        </div>
         <Plot
           key={`plot-3d-${sidebarCollapsed ? 'collapsed' : 'expanded'}`}
           data={threeDData}
@@ -323,10 +336,11 @@ export function Visualizer({ sidebarCollapsed = false }: VisualizerProps) {
             font: { color: axisText, family: 'Inter, sans-serif' },
             scene: {
               bgcolor: 'rgba(0,0,0,0)',
+              dragmode: 'turntable',
               xaxis: { title: { text: 'Feature 1' }, color: axisText, gridcolor: grid, zerolinecolor: zero },
               yaxis: { title: { text: 'Feature 2' }, color: axisText, gridcolor: grid, zerolinecolor: zero },
               zaxis: { title: { text: 'Target y' }, color: axisText, gridcolor: grid, zerolinecolor: zero },
-              camera: { eye: { x: 1.4, y: 1.4, z: 0.9 } },
+              camera: cameraByPreset[cameraPreset],
             },
             legend: {
               x: 0.02,
@@ -337,7 +351,7 @@ export function Visualizer({ sidebarCollapsed = false }: VisualizerProps) {
               font: { size: 11, color: axisText },
             },
           }}
-          config={{ responsive: true, displayModeBar: false }}
+          config={{ responsive: true, displayModeBar: false, scrollZoom: true, doubleClick: 'reset+autosize' }}
           useResizeHandler
           style={{ width: '100%', height: '100%' }}
         />
@@ -427,6 +441,7 @@ export function Visualizer({ sidebarCollapsed = false }: VisualizerProps) {
           margin: { l: 44, r: 12, t: 16, b: 46 },
           paper_bgcolor: 'rgba(0,0,0,0)',
           plot_bgcolor: 'rgba(0,0,0,0)',
+          dragmode: 'pan',
           font: { color: 'hsl(var(--text-secondary))', family: 'Inter, sans-serif' },
           xaxis: {
             title: { text: 'X', standoff: 8, font: { size: 12, color: axisText } },
@@ -472,7 +487,7 @@ export function Visualizer({ sidebarCollapsed = false }: VisualizerProps) {
             },
           ],
         }}
-        config={{ responsive: true, displayModeBar: false }}
+        config={{ responsive: true, displayModeBar: false, scrollZoom: true, doubleClick: 'reset+autosize' }}
         useResizeHandler
         style={{ width: '100%', height: '100%' }}
       />

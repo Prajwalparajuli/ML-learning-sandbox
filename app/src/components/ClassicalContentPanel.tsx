@@ -3,6 +3,7 @@ import { PlayCircle, Gauge, FlaskConical, Shuffle, ChevronDown, ChevronUp } from
 import { useModelStore } from '../store/modelStore';
 import { diagnosticsMeta, metricMeta, modelContentMap, resamplingMeta } from '../content/classicalContentAdapter';
 import { toast } from 'sonner';
+import type { ModelType } from '../store/modelStore';
 
 interface ClassicalContentPanelProps {
   compact?: boolean;
@@ -30,12 +31,13 @@ export function ClassicalContentPanel({ compact = false }: ClassicalContentPanel
   const activeModel = modelContentMap[modelType];
   const activeResampling = resamplingMeta.find((item) => item.implementedModes.includes(evaluationMode));
   const primaryMetric = selectedMetrics[0];
-  const tryNextActions = taskMode === 'classification'
+  const tryNextActionsAll = taskMode === 'classification'
     ? [
       {
         id: 'cls-threshold-shift',
         title: 'Threshold Sprint',
         subtitle: 'Lower threshold to prioritize recall',
+        models: ['logistic_classifier'] as ModelType[],
         run: () => {
           setTaskMode('classification');
           setModelType('logistic_classifier');
@@ -50,6 +52,7 @@ export function ClassicalContentPanel({ compact = false }: ClassicalContentPanel
         id: 'cls-tree-compare',
         title: 'Tree vs Forest',
         subtitle: 'Compare single-tree variance vs bagging',
+        models: ['decision_tree_classifier', 'random_forest_classifier'] as ModelType[],
         run: () => {
           setTaskMode('classification');
           setDataset('class_overlap');
@@ -65,6 +68,7 @@ export function ClassicalContentPanel({ compact = false }: ClassicalContentPanel
         id: 'cls-margin',
         title: 'Margin Sweep',
         subtitle: 'Raise C to tighten the SVM boundary',
+        models: ['svm_classifier'] as ModelType[],
         run: () => {
           setTaskMode('classification');
           setDataset('class_moons');
@@ -79,6 +83,7 @@ export function ClassicalContentPanel({ compact = false }: ClassicalContentPanel
         id: 'cls-boost',
         title: 'Boost Focus',
         subtitle: 'Try boosted stumps on overlap',
+        models: ['adaboost_classifier', 'gradient_boosting_classifier'] as ModelType[],
         run: () => {
           setTaskMode('classification');
           setDataset('class_overlap');
@@ -96,6 +101,7 @@ export function ClassicalContentPanel({ compact = false }: ClassicalContentPanel
         id: 'reg-quick-ab',
         title: 'Quick A/B',
         subtitle: 'Switch OLS to Ridge on noisy data',
+        models: ['ols', 'ridge', 'lasso', 'elasticnet'] as ModelType[],
         run: () => {
           setTaskMode('regression');
           setDataset('noisy');
@@ -110,6 +116,7 @@ export function ClassicalContentPanel({ compact = false }: ClassicalContentPanel
         id: 'reg-sensitivity',
         title: 'Sensitivity',
         subtitle: 'Sweep alpha for stability',
+        models: ['ridge', 'lasso', 'elasticnet', 'pcr_regressor', 'pls_regressor'] as ModelType[],
         run: () => {
           setTaskMode('regression');
           setDataset('heteroscedastic');
@@ -124,6 +131,7 @@ export function ClassicalContentPanel({ compact = false }: ClassicalContentPanel
         id: 'reg-diagnostics',
         title: 'Diagnostics',
         subtitle: 'Stress assumptions with outliers',
+        models: ['ols', 'ridge', 'lasso', 'elasticnet', 'svm_regressor'] as ModelType[],
         run: () => {
           setTaskMode('regression');
           setDataset('outliers');
@@ -137,6 +145,7 @@ export function ClassicalContentPanel({ compact = false }: ClassicalContentPanel
         id: 'reg-resample',
         title: 'Resampling',
         subtitle: activeResampling ? `Current mode: ${activeResampling.title}` : 'Compare train/test vs k-fold stability',
+        models: ['polynomial', 'forward_stepwise', 'backward_stepwise', 'svm_regressor', 'pcr_regressor', 'pls_regressor'] as ModelType[],
         run: () => {
           setTaskMode('regression');
           setDataset('noisy');
@@ -150,6 +159,11 @@ export function ClassicalContentPanel({ compact = false }: ClassicalContentPanel
       },
     ];
 
+  const tryNextActions = useMemo(() => {
+    const strict = tryNextActionsAll.filter((action) => action.models.includes(modelType));
+    return strict.length > 0 ? strict : tryNextActionsAll.slice(0, 2);
+  }, [tryNextActionsAll, modelType]);
+
   const insights = useMemo(() => {
     const metricNote = primaryMetric ? metricMeta[primaryMetric]?.description : 'Track metrics while changing one control at a time.';
     return [
@@ -160,7 +174,7 @@ export function ClassicalContentPanel({ compact = false }: ClassicalContentPanel
     ];
   }, [activeModel.explanation, dataset, activeResampling?.title, evaluationMode, primaryMetric]);
 
-  const applyTryNext = (action: (typeof tryNextActions)[number]) => {
+  const applyTryNext = (action: (typeof tryNextActionsAll)[number]) => {
     const snapshot = captureSandboxSnapshot();
     action.run();
     toast.success('Preset applied', {

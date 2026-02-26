@@ -1,7 +1,7 @@
-import { useModelStore } from '../store/modelStore';
+import { useModelStore, type ModelParams, type ModelType } from '../store/modelStore';
 import { TrendingUp, BarChart2, Activity, Target } from 'lucide-react';
 import { evaluateModelMetrics } from '../lib/dataUtils';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { metricMeta } from '../content/classicalContentAdapter';
 import { featureFlags } from '../config/featureFlags';
 import { InfoPopover } from './InfoPopover';
@@ -16,6 +16,8 @@ export function MetricsBoard({ compact = false }: MetricsBoardProps) {
     metrics,
     data,
     compareWithOls,
+    comparePinnedModels,
+    clearPinnedModels,
     params,
     evaluationMode,
     testRatio,
@@ -24,6 +26,49 @@ export function MetricsBoard({ compact = false }: MetricsBoardProps) {
     datasetVersion,
     selectedMetrics,
   } = useModelStore();
+  const prevMetricsRef = useRef(metrics);
+  const [deltaCaption, setDeltaCaption] = useState<string>('Adjust one control to see what changed.');
+
+  const paramsForModel = (target: ModelType, base: ModelParams): ModelParams => {
+    const defaults: ModelParams = {
+      alpha: 0.1,
+      l1Ratio: 0.5,
+      polynomialDegree: 3,
+      stepwiseTerms: 2,
+      knnK: 5,
+      svmC: 1,
+      svmGamma: 1,
+      svmEpsilon: 0.1,
+      treeDepth: 4,
+      forestTrees: 35,
+      boostingRounds: 40,
+      learningRate: 0.1,
+      pcaComponents: 2,
+      plsComponents: 2,
+      decisionThreshold: 0.5,
+    };
+    if (target === 'ridge' || target === 'lasso' || target === 'elasticnet' || target === 'svm_regressor' || target === 'svm_classifier') {
+      defaults.alpha = base.alpha;
+      defaults.svmC = base.svmC;
+      defaults.svmGamma = base.svmGamma;
+      defaults.svmEpsilon = base.svmEpsilon;
+    }
+    if (target === 'polynomial' || target === 'forward_stepwise' || target === 'backward_stepwise') {
+      defaults.polynomialDegree = base.polynomialDegree;
+      defaults.stepwiseTerms = base.stepwiseTerms;
+    }
+    if (target === 'knn_classifier') defaults.knnK = base.knnK;
+    if (target === 'decision_tree_classifier' || target === 'random_forest_classifier') defaults.treeDepth = base.treeDepth;
+    if (target === 'random_forest_classifier') defaults.forestTrees = base.forestTrees;
+    if (target === 'adaboost_classifier' || target === 'gradient_boosting_classifier') {
+      defaults.boostingRounds = base.boostingRounds;
+      defaults.learningRate = base.learningRate;
+    }
+    if (target === 'pcr_regressor') defaults.pcaComponents = base.pcaComponents;
+    if (target === 'pls_regressor') defaults.plsComponents = base.plsComponents;
+    defaults.decisionThreshold = base.decisionThreshold;
+    return defaults;
+  };
 
   const olsMetrics = useMemo(
     () => (compareWithOls && taskMode === 'regression' && data.length > 0
@@ -33,6 +78,59 @@ export function MetricsBoard({ compact = false }: MetricsBoardProps) {
   );
 
   const activeMetrics = metrics;
+  const pinnedComparisons = useMemo(
+    () => comparePinnedModels.map((pinned) => ({
+      model: pinned,
+      metrics: evaluateModelMetrics(
+        data,
+        pinned,
+        paramsForModel(pinned, params),
+        evaluationMode,
+        testRatio,
+        cvFolds,
+        randomSeed + datasetVersion
+      ),
+    })),
+    [comparePinnedModels, data, params, evaluationMode, testRatio, cvFolds, randomSeed, datasetVersion]
+  );
+
+  useEffect(() => {
+    const prev = prevMetricsRef.current;
+    if (!prev) {
+      prevMetricsRef.current = metrics;
+      return;
+    }
+    if (taskMode === 'regression') {
+      const r2Delta = metrics.r2 - prev.r2;
+      const rmseDelta = metrics.rmse - prev.rmse;
+      if (r2Delta > 0.01 && rmseDelta < -0.01) {
+        setDeltaCaption('Fit improved: explained variance rose while error fell.');
+      } else if (r2Delta < -0.01 && rmseDelta > 0.01) {
+        setDeltaCaption('Generalization weakened: variance explained dropped and error increased.');
+      } else if (Math.abs(r2Delta) < 0.005 && Math.abs(rmseDelta) < 0.005) {
+        setDeltaCaption('Change impact is small: model behavior is currently stable.');
+      } else if (r2Delta > 0 && rmseDelta > 0) {
+        setDeltaCaption('Tradeoff detected: fit score improved but absolute errors rose on this split.');
+      } else {
+        setDeltaCaption('Bias-variance balance shifted; check diagnostics before locking this setting.');
+      }
+    } else {
+      const recallDelta = metrics.recall - prev.recall;
+      const precisionDelta = metrics.precision - prev.precision;
+      if (recallDelta > 0.01 && precisionDelta < -0.01) {
+        setDeltaCaption('Boundary became more permissive: recall rose while precision fell.');
+      } else if (recallDelta < -0.01 && precisionDelta > 0.01) {
+        setDeltaCaption('Boundary became more selective: precision improved while recall dropped.');
+      } else if (metrics.f1 - prev.f1 > 0.01) {
+        setDeltaCaption('Class separation improved: F1 increased with the latest change.');
+      } else if (Math.abs(metrics.f1 - prev.f1) < 0.005) {
+        setDeltaCaption('Little movement in class quality metrics from the last adjustment.');
+      } else {
+        setDeltaCaption('Threshold-quality tradeoff shifted; inspect confidence diagnostics next.');
+      }
+    }
+    prevMetricsRef.current = metrics;
+  }, [metrics, taskMode]);
 
   const regressionCards = [
     {
@@ -221,6 +319,36 @@ export function MetricsBoard({ compact = false }: MetricsBoardProps) {
           );
         })}
       </div>
+      <div className="material-panel-soft px-3 py-2 text-xs text-text-secondary">
+        Why this changed: {deltaCaption}
+      </div>
+      {comparePinnedModels.length > 0 && (
+        <div className="material-panel-soft p-2.5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="panel-title">Model Compare Tray</p>
+            <button type="button" className="text-[11px] text-text-tertiary hover:text-text-primary" onClick={clearPinnedModels}>
+              Clear
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {pinnedComparisons.map((entry) => (
+              <div key={entry.model} className="rounded-xl border border-border-subtle p-2">
+                <div className="text-xs font-semibold text-text-primary mb-1.5">{entry.model.replaceAll('_', ' ')}</div>
+                <div className="text-[11px] text-text-secondary">
+                  {taskMode === 'classification'
+                    ? `Accuracy ${entry.metrics.accuracy.toFixed(3)} · F1 ${entry.metrics.f1.toFixed(3)} · ROC-AUC ${entry.metrics.rocAuc.toFixed(3)}`
+                    : `R² ${entry.metrics.r2.toFixed(3)} · RMSE ${entry.metrics.rmse.toFixed(3)} · MAE ${entry.metrics.mae.toFixed(3)}`}
+                </div>
+              </div>
+            ))}
+            {comparePinnedModels.length < 2 && (
+              <div className="rounded-xl border border-dashed border-border-subtle p-2 text-[11px] text-text-tertiary">
+                Pin up to 2 models from the hero strip to compare on the same data and seed.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {taskMode === 'regression' && compareWithOls && (
         <div className="rounded-xl border border-dashed border-border-subtle px-3 py-2 text-[11px] text-text-tertiary">
           OLS baseline uses closed-form fit from current dataset ({data.length} points).

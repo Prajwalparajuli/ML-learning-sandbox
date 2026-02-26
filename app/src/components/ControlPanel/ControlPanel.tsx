@@ -1,3 +1,4 @@
+import { useState, type ReactNode } from 'react';
 import { useModelStore, type DatasetType, type MetricKey, type ModelType } from '../../store/modelStore';
 import { Slider } from './Slider';
 import { Toggle } from './Toggle';
@@ -11,6 +12,7 @@ import {
   RotateCcw,
   Settings2,
   Sliders,
+  ChevronDown,
 } from 'lucide-react';
 import { metricMeta, modelContentMap } from '../../content/classicalContentAdapter';
 import { InfoPopover } from '../InfoPopover';
@@ -24,6 +26,9 @@ const regressionModelOptions: { value: ModelType; label: string; description: st
   { value: 'polynomial', label: modelContentMap.polynomial.title, description: modelContentMap.polynomial.explanation, family: 'nonlinear' },
   { value: 'forward_stepwise', label: modelContentMap.forward_stepwise.title, description: modelContentMap.forward_stepwise.explanation, family: 'nonlinear' },
   { value: 'backward_stepwise', label: modelContentMap.backward_stepwise.title, description: modelContentMap.backward_stepwise.explanation, family: 'nonlinear' },
+  { value: 'svm_regressor', label: modelContentMap.svm_regressor.title, description: modelContentMap.svm_regressor.explanation, family: 'regularized' },
+  { value: 'pcr_regressor', label: modelContentMap.pcr_regressor.title, description: modelContentMap.pcr_regressor.explanation, family: 'regularized' },
+  { value: 'pls_regressor', label: modelContentMap.pls_regressor.title, description: modelContentMap.pls_regressor.explanation, family: 'regularized' },
 ];
 
 const classificationModelOptions: { value: ModelType; label: string; description: string; family: 'linear' | 'local' | 'margin' | 'tree' | 'boosting' }[] = [
@@ -44,6 +49,7 @@ const regressionDatasetOptions: { value: DatasetType; label: string; description
   { value: 'quadratic', label: 'Quadratic', description: 'Curved relationship' },
   { value: 'sinusoidal', label: 'Sinusoidal', description: 'Periodic trend + noise' },
   { value: 'piecewise', label: 'Piecewise', description: 'Segmented linear regimes' },
+  { value: 'random_recipe', label: 'Random Recipe', description: 'User-generated synthetic pattern/noise mix' },
 ];
 
 const classificationDatasetOptions: { value: DatasetType; label: string; description: string }[] = [
@@ -93,11 +99,40 @@ function useControlStore() {
   };
 }
 
+function CollapsibleTile({
+  title,
+  icon,
+  defaultOpen = false,
+  children,
+  headerRight,
+}: {
+  title: string;
+  icon: ReactNode;
+  defaultOpen?: boolean;
+  children: ReactNode;
+  headerRight?: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="material-panel p-3.5">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="w-full flex items-center justify-between gap-2 text-left">
+        <span className="inline-flex items-center gap-2">
+          {icon}
+          <span className="panel-title">{title}</span>
+        </span>
+        <span className="inline-flex items-center gap-2">
+          {headerRight}
+          <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary transition-transform ${open ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+      {open && <div className="mt-3">{children}</div>}
+    </section>
+  );
+}
+
 export function DataControlPanel() {
   const {
     taskMode,
-    modelType,
-    setModelType,
     dataset,
     setDataset,
     sampleSize,
@@ -113,16 +148,21 @@ export function DataControlPanel() {
     featureMode,
     setFeatureMode,
     regenerateDataset,
+    randomDataRecipe,
+    setRandomDataRecipe,
+    generateRandomDatasetFromRecipe,
   } = useControlStore();
   const datasetOptions = taskMode === 'classification' ? classificationDatasetOptions : regressionDatasetOptions;
+  const selectedDataset = datasetOptions.find((option) => option.value === dataset) ?? datasetOptions[0];
 
   return (
     <div className="space-y-3">
-      <div className="material-panel p-3.5">
-        <div className="flex items-center gap-2 mb-3">
-          <Database className="w-4 h-4 text-accent" />
-          <h3 className="panel-title">Data Mood</h3>
-        </div>
+      <CollapsibleTile
+        title="Data Profile"
+        icon={<Database className="w-4 h-4 text-accent" />}
+        defaultOpen
+        headerRight={<span className="text-[11px] text-text-tertiary">{selectedDataset.label}</span>}
+      >
         {taskMode === 'regression' ? (
           <div className="grid grid-cols-2 gap-1.5 mb-2.5">
             <button type="button" onClick={() => setFeatureMode('1d')} className={`eval-chip ${featureMode === '1d' ? 'eval-chip-active' : ''}`}>1D Features</button>
@@ -130,9 +170,6 @@ export function DataControlPanel() {
               type="button"
               onClick={() => {
                 setFeatureMode('2d');
-                if (modelType === 'polynomial' || modelType === 'forward_stepwise' || modelType === 'backward_stepwise') {
-                  setModelType('ridge');
-                }
               }}
               className={`eval-chip ${featureMode === '2d' ? 'eval-chip-active' : ''}`}
             >
@@ -147,6 +184,14 @@ export function DataControlPanel() {
         {taskMode === 'classification' && (
           <p className="text-[11px] text-text-tertiary mb-2">Classification mode is optimized for 2D boundary visualization.</p>
         )}
+        <div className="material-panel-soft p-2 mb-2">
+          <p className="text-xs text-text-secondary">{selectedDataset.description}</p>
+          <p className="text-[11px] text-text-tertiary mt-1">
+            Signal: {dataset === 'linear' ? 'Linear' : dataset === 'quadratic' ? 'Curved' : dataset === 'sinusoidal' ? 'Periodic' : dataset === 'random_recipe' ? 'Custom Recipe' : 'Mixed'} ·
+            Noise: {dataset === 'noisy' || dataset === 'random_recipe' ? 'Medium/High' : 'Low/Medium'} ·
+            Outliers: {dataset === 'outliers' ? 'High' : dataset === 'random_recipe' ? randomDataRecipe.outlierLevel : 'Low'}
+          </p>
+        </div>
         <div className="space-y-1.5">
           {datasetOptions.map((option) => (
             <button
@@ -164,12 +209,11 @@ export function DataControlPanel() {
             </button>
           ))}
         </div>
-      </div>
+      </CollapsibleTile>
 
-      <div className="material-panel p-3.5">
+      <CollapsibleTile title="Resampling" icon={<BarChart3 className="w-4 h-4 text-accent" />} defaultOpen>
         <div className="flex items-center gap-2 mb-3">
-          <BarChart3 className="w-4 h-4 text-accent" />
-          <h3 className="panel-title">Train & Validate</h3>
+          <span className="panel-title">Train & Validate</span>
           {featureFlags.ff_info_microcards && (
             <InfoPopover
               label="Resampling Modes"
@@ -222,13 +266,9 @@ export function DataControlPanel() {
             onChange={(value) => setCvFolds(Math.round(value))}
           />
         )}
-      </div>
+      </CollapsibleTile>
 
-      <div className="material-panel p-3.5">
-        <div className="flex items-center gap-2 mb-3">
-          <FlaskConical className="w-4 h-4 text-accent" />
-          <h3 className="panel-title">Data Generation</h3>
-        </div>
+      <CollapsibleTile title="Data Generation" icon={<FlaskConical className="w-4 h-4 text-accent" />}>
         <div className="space-y-3.5">
           <Slider
             label="Sample Size (n)"
@@ -255,7 +295,39 @@ export function DataControlPanel() {
             Resample Dataset
           </button>
         </div>
-      </div>
+      </CollapsibleTile>
+
+      {taskMode === 'regression' && (
+        <CollapsibleTile title="Random Data Builder" icon={<FlaskConical className="w-4 h-4 text-accent" />}>
+          <div className="grid grid-cols-2 gap-1.5 mb-2">
+            <button type="button" className={`eval-chip min-h-9 whitespace-normal break-words leading-tight text-center text-[11px] sm:text-xs px-1.5 ${randomDataRecipe.pattern === 'linear' ? 'eval-chip-active' : ''}`} onClick={() => setRandomDataRecipe({ pattern: 'linear' })}>Linear</button>
+            <button type="button" className={`eval-chip min-h-9 whitespace-normal break-words leading-tight text-center text-[11px] sm:text-xs px-1.5 ${randomDataRecipe.pattern === 'polynomial' ? 'eval-chip-active' : ''}`} onClick={() => setRandomDataRecipe({ pattern: 'polynomial' })}>Polynomial</button>
+            <button type="button" className={`eval-chip min-h-9 whitespace-normal break-words leading-tight text-center text-[11px] sm:text-xs px-1.5 ${randomDataRecipe.pattern === 'sinusoidal' ? 'eval-chip-active' : ''}`} onClick={() => setRandomDataRecipe({ pattern: 'sinusoidal' })}>Sinusoidal</button>
+            <button type="button" className={`eval-chip min-h-9 whitespace-normal break-words leading-tight text-center text-[11px] sm:text-xs px-1.5 ${randomDataRecipe.pattern === 'piecewise' ? 'eval-chip-active' : ''}`} onClick={() => setRandomDataRecipe({ pattern: 'piecewise' })}>Piecewise</button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mb-2">
+            <button type="button" className={`eval-chip min-h-9 whitespace-normal break-words leading-tight text-center text-[11px] sm:text-xs px-1.5 ${randomDataRecipe.noiseType === 'gaussian' ? 'eval-chip-active' : ''}`} onClick={() => setRandomDataRecipe({ noiseType: 'gaussian' })}>Gaussian</button>
+            <button type="button" className={`eval-chip min-h-9 whitespace-normal break-words leading-tight text-center text-[11px] sm:text-xs px-1.5 ${randomDataRecipe.noiseType === 'heteroscedastic' ? 'eval-chip-active' : ''}`} onClick={() => setRandomDataRecipe({ noiseType: 'heteroscedastic' })}>Hetero</button>
+            <button type="button" className={`eval-chip min-h-9 whitespace-normal break-words leading-tight text-center text-[11px] sm:text-xs px-1.5 ${randomDataRecipe.noiseType === 'heavy_tail' ? 'eval-chip-active' : ''}`} onClick={() => setRandomDataRecipe({ noiseType: 'heavy_tail' })}>Heavy Tail</button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-3">
+            {(['none', 'low', 'medium', 'high'] as const).map((level) => (
+              <button key={level} type="button" className={`eval-chip min-h-9 whitespace-normal break-words leading-tight text-center text-[11px] sm:text-xs px-1.5 ${randomDataRecipe.outlierLevel === level ? 'eval-chip-active' : ''}`} onClick={() => setRandomDataRecipe({ outlierLevel: level })}>
+                {level}
+              </button>
+            ))}
+          </div>
+          <Toggle label="Correlated Features" checked={randomDataRecipe.correlatedFeatures} onChange={(checked) => setRandomDataRecipe({ correlatedFeatures: checked })} />
+          <button
+            type="button"
+            onClick={generateRandomDatasetFromRecipe}
+            className="control-option interactive-lift w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 mt-3 text-sm font-medium text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Generate and Switch
+          </button>
+        </CollapsibleTile>
+      )}
 
       {taskMode === 'regression' && (dataset === 'outliers' || dataset === 'heteroscedastic') && (
         <div className="material-panel-soft p-2.5 flex items-start gap-2 border-amber-400/35 bg-amber-200/20 dark:bg-amber-400/10">
@@ -285,7 +357,6 @@ export function ModelControlPanel() {
     showClassificationDiagnostics,
     setShowClassificationDiagnostics,
     resetParams,
-    featureMode,
     selectedMetrics,
     setSelectedMetrics,
     usesRegularization,
@@ -296,7 +367,7 @@ export function ModelControlPanel() {
 
   const regressionFamily: RegressionFamilyFilter = modelType === 'ols'
     ? 'linear'
-    : modelType === 'ridge' || modelType === 'lasso' || modelType === 'elasticnet'
+    : modelType === 'ridge' || modelType === 'lasso' || modelType === 'elasticnet' || modelType === 'pcr_regressor' || modelType === 'pls_regressor' || modelType === 'svm_regressor'
       ? 'regularized'
       : 'nonlinear';
   const classificationFamily: ClassificationFamilyFilter = modelType === 'knn_classifier'
@@ -311,7 +382,7 @@ export function ModelControlPanel() {
   const metricOptions = taskMode === 'classification' ? classificationMetricOptions : regressionMetricOptions;
 
   const setRegressionFamily = (family: RegressionFamilyFilter) => {
-    const fallback = regressionModelOptions.find((option) => option.family === family && (featureMode === '1d' || family !== 'nonlinear'));
+    const fallback = regressionModelOptions.find((option) => option.family === family);
     if (fallback) setModelType(fallback.value);
   };
   const setClassificationFamily = (family: ClassificationFamilyFilter) => {
@@ -320,10 +391,10 @@ export function ModelControlPanel() {
   };
   const allowedModelOptions = taskMode === 'classification'
     ? classificationModelOptions
-    : regressionModelOptions.filter((option) => featureMode === '1d' || option.family !== 'nonlinear');
+    : regressionModelOptions;
   const activeVisibleFamily = taskMode === 'classification'
     ? classificationFamily
-    : (featureMode === '2d' && regressionFamily === 'nonlinear' ? 'regularized' : regressionFamily);
+    : regressionFamily;
   const toggleMetric = (metric: MetricKey) => {
     if (selectedMetrics.includes(metric)) {
       if (selectedMetrics.length === 1) return;
@@ -335,11 +406,7 @@ export function ModelControlPanel() {
 
   return (
     <div className="space-y-3">
-      <div className="material-panel p-3.5">
-        <div className="flex items-center gap-2 mb-3">
-          <Filter className="w-4 h-4 text-accent" />
-          <h3 className="panel-title">Model Family</h3>
-        </div>
+      <CollapsibleTile title="Model Family" icon={<Filter className="w-4 h-4 text-accent" />} defaultOpen>
         <div className="flex flex-wrap gap-1.5 mb-3">
           {taskMode === 'classification' ? (
             <>
@@ -353,13 +420,10 @@ export function ModelControlPanel() {
             <>
               <button type="button" onClick={() => setRegressionFamily('linear')} className={`model-family-chip ${activeVisibleFamily === 'linear' ? 'model-family-chip-active' : ''}`}>Linear</button>
               <button type="button" onClick={() => setRegressionFamily('regularized')} className={`model-family-chip ${activeVisibleFamily === 'regularized' ? 'model-family-chip-active' : ''}`}>Regularized</button>
-              <button type="button" onClick={() => setRegressionFamily('nonlinear')} disabled={featureMode === '2d'} className={`model-family-chip ${activeVisibleFamily === 'nonlinear' ? 'model-family-chip-active' : ''} ${featureMode === '2d' ? 'opacity-50 cursor-not-allowed' : ''}`}>Nonlinear</button>
+              <button type="button" onClick={() => setRegressionFamily('nonlinear')} className={`model-family-chip ${activeVisibleFamily === 'nonlinear' ? 'model-family-chip-active' : ''}`}>Nonlinear</button>
             </>
           )}
         </div>
-        {taskMode === 'regression' && featureMode === '2d' && (
-          <p className="text-[11px] text-text-tertiary mb-2">Polynomial and stepwise variants are 1D-only in this view.</p>
-        )}
         <div className="space-y-1.5">
           {allowedModelOptions
             .filter((option) => option.family === activeVisibleFamily)
@@ -377,11 +441,10 @@ export function ModelControlPanel() {
               </button>
             ))}
         </div>
-      </div>
+      </CollapsibleTile>
 
-      <div className="material-panel p-3.5">
+      <CollapsibleTile title="Scoreboard Metrics" icon={<BarChart3 className="w-4 h-4 text-accent" />}>
         <div className="flex items-center gap-2 mb-3">
-          <BarChart3 className="w-4 h-4 text-accent" />
           <h3 className="panel-title">Scoreboard Metrics</h3>
         </div>
         <div className="grid grid-cols-2 gap-1.5">
@@ -396,11 +459,10 @@ export function ModelControlPanel() {
             </button>
           ))}
         </div>
-      </div>
+      </CollapsibleTile>
 
-      <div className="material-panel p-3.5">
+      <CollapsibleTile title="Hyperparameters" icon={<Sliders className="w-4 h-4 text-accent" />} defaultOpen>
         <div className="flex items-center gap-2 mb-3">
-          <Sliders className="w-4 h-4 text-accent" />
           <h3 className="panel-title">Hyperparameters</h3>
           {featureFlags.ff_info_microcards && (
             <InfoPopover
@@ -522,6 +584,54 @@ export function ModelControlPanel() {
               />
             </>
           )}
+          {taskMode === 'regression' && modelType === 'svm_regressor' && (
+            <>
+              <Slider
+                label="SVR C"
+                value={params.svmC}
+                min={0.1}
+                max={6}
+                step={0.1}
+                onChange={(value) => setParam('svmC', Number(value.toFixed(2)))}
+              />
+              <Slider
+                label="SVR Gamma"
+                value={params.svmGamma}
+                min={0.05}
+                max={5}
+                step={0.05}
+                onChange={(value) => setParam('svmGamma', Number(value.toFixed(2)))}
+              />
+              <Slider
+                label="SVR Epsilon"
+                value={params.svmEpsilon ?? 0.1}
+                min={0.01}
+                max={0.8}
+                step={0.01}
+                onChange={(value) => setParam('svmEpsilon', Number(value.toFixed(2)))}
+              />
+            </>
+          )}
+          {taskMode === 'regression' && modelType === 'pcr_regressor' && (
+            <Slider
+              label="PCR Components"
+              value={params.pcaComponents ?? 2}
+              min={1}
+              max={6}
+              step={1}
+              onChange={(value) => setParam('pcaComponents', Math.round(value))}
+            />
+          )}
+          {taskMode === 'regression' && modelType === 'pls_regressor' && (
+            <Slider
+              label="PLS Components"
+              value={params.plsComponents ?? 2}
+              min={1}
+              max={6}
+              step={1}
+              onChange={(value) => setParam('plsComponents', Math.round(value))}
+            />
+          )}
           {taskMode === 'classification' && (
             <Slider
               label="Decision Threshold"
@@ -541,11 +651,10 @@ export function ModelControlPanel() {
             Reset Model Params
           </button>
         </div>
-      </div>
+      </CollapsibleTile>
 
-      <div className="material-panel p-3.5">
+      <CollapsibleTile title="Diagnostics and Views" icon={<Settings2 className="w-4 h-4 text-accent" />}>
         <div className="flex items-center gap-2 mb-3">
-          <Settings2 className="w-4 h-4 text-accent" />
           <h3 className="panel-title">Model Views</h3>
           {featureFlags.ff_info_microcards && (
             <InfoPopover
@@ -563,7 +672,7 @@ export function ModelControlPanel() {
             : <Toggle label="Classification Diagnostics" checked={showClassificationDiagnostics} onChange={setShowClassificationDiagnostics} />}
           {taskMode === 'regression' && <Toggle label="Compare vs OLS Metrics" checked={compareWithOls} onChange={setCompareWithOls} />}
         </div>
-      </div>
+      </CollapsibleTile>
     </div>
   );
 }

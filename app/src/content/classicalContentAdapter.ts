@@ -124,6 +124,27 @@ export const modelContentMap: Record<
     explanation:
       'Backward stepwise starts richer and removes weaker terms, often reducing variance while preserving fit quality.',
   },
+  svm_regressor: {
+    title: 'SVM Regressor',
+    familyId: 'nonlinear_additive',
+    methodId: 'svm_regression',
+    explanation:
+      'SVR uses margin-based regression with kernels to fit nonlinear trends while controlling complexity.',
+  },
+  pcr_regressor: {
+    title: 'PCR',
+    familyId: 'regression',
+    methodId: 'pcr',
+    explanation:
+      'Principal Component Regression projects correlated predictors into orthogonal components before fitting regression.',
+  },
+  pls_regressor: {
+    title: 'PLS',
+    familyId: 'regression',
+    methodId: 'pls',
+    explanation:
+      'Partial Least Squares learns latent factors aligned with target variation, useful with correlated high-dimensional inputs.',
+  },
   logistic_classifier: {
     title: 'Logistic Classifier',
     familyId: 'classification',
@@ -183,6 +204,7 @@ export const datasetExplanations: Record<DatasetType, string> = {
   quadratic: 'Curved pattern where basis expansion reduces underfitting.',
   sinusoidal: 'Periodic pattern useful for checking approximation limits.',
   piecewise: 'Segmented local regimes where global linear fits underperform.',
+  random_recipe: 'User-generated synthetic data from recipe controls for stress-testing model behavior.',
   class_linear: 'Linearly separable classes for baseline classification behavior.',
   class_overlap: 'Overlapping classes that stress precision/recall tradeoffs.',
   class_moons: 'Nonlinear interleaving shapes for boundary flexibility learning.',

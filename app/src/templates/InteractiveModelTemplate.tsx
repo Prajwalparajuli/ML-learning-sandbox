@@ -1,16 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { useModelStore } from '../store/modelStore';
-import { generateDataset, evaluateModelMetrics, fitRegressionModel, latexForModel } from '../lib/dataUtils';
+import { generateDataset, evaluateModelMetrics, fitRegressionModel, latexForModel, supports2D } from '../lib/dataUtils';
 import { DataControlPanel, ModelControlPanel } from '../components/ControlPanel/ControlPanel';
 import { FormulaDisplay } from '../components/FormulaDisplay';
 import { Visualizer } from '../components/Visualizer';
 import { MetricsBoard } from '../components/MetricsBoard';
-import { CodeExporter } from '../components/CodeExporter';
-import { AssumptionChecker } from '../components/AssumptionChecker/AssumptionChecker';
-import { ClassificationDiagnostics } from '../components/ClassificationDiagnostics';
-import { LearningInsights } from '../components/LearningInsights';
-import { ClassicalContentPanel } from '../components/ClassicalContentPanel';
-import { ScenarioMissions } from '../components/ScenarioMissions';
 import { InfoPopover } from '../components/InfoPopover';
 import { Toaster } from '../components/ui/sonner';
 import { toast } from 'sonner';
@@ -19,16 +13,34 @@ import { ThemeToggle } from '../components/ThemeToggle';
 import { datasetExplanations, modelContentMap } from '../content/classicalContentAdapter';
 import { featureFlags } from '../config/featureFlags';
 
+const LazyCodeExporter = lazy(() => import('../components/CodeExporter').then((m) => ({ default: m.CodeExporter })));
+const LazyAssumptionChecker = lazy(() => import('../components/AssumptionChecker/AssumptionChecker').then((m) => ({ default: m.AssumptionChecker })));
+const LazyClassificationDiagnostics = lazy(() => import('../components/ClassificationDiagnostics').then((m) => ({ default: m.ClassificationDiagnostics })));
+const LazyLearningInsights = lazy(() => import('../components/LearningInsights').then((m) => ({ default: m.LearningInsights })));
+const LazyClassicalContentPanel = lazy(() => import('../components/ClassicalContentPanel').then((m) => ({ default: m.ClassicalContentPanel })));
+const LazyScenarioMissions = lazy(() => import('../components/ScenarioMissions').then((m) => ({ default: m.ScenarioMissions })));
+const LazyDimensionalityReductionLab = lazy(() => import('../components/DimensionalityReductionLab').then((m) => ({ default: m.DimensionalityReductionLab })));
+
 export function InteractiveModelTemplate() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [focusPanel, setFocusPanel] = useState<'none' | 'lens' | 'diagnostics' | 'playbook' | 'missions'>('none');
   const [showEquation, setShowEquation] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
+  const [showLoadGuardHint, setShowLoadGuardHint] = useState(false);
+  const [renderLensSection, setRenderLensSection] = useState(false);
+  const [renderDiagnosticsPanel, setRenderDiagnosticsPanel] = useState(false);
+  const [renderMissionsSection, setRenderMissionsSection] = useState(false);
+  const [renderPlaybookSection, setRenderPlaybookSection] = useState(false);
+  const [renderExportSection, setRenderExportSection] = useState(false);
+  const [renderDimReductionSection, setRenderDimReductionSection] = useState(false);
   const {
     taskMode,
     setTaskMode,
     modelType,
+    setModelType,
     dataset,
     params,
+    setParam,
     data,
     sampleSize,
     randomSeed,
@@ -41,10 +53,14 @@ export function InteractiveModelTemplate() {
     showClassificationDiagnostics,
     showOlsSolution,
     compareWithOls,
+    comparePinnedModels,
+    togglePinnedModel,
     heroLayoutMode,
     setHeroLayoutMode,
     viewMode,
-    setViewMode,
+    onboardingState,
+    setOnboardingState,
+    randomDataRecipe,
     setData,
     setMetrics,
     error,
@@ -59,13 +75,13 @@ export function InteractiveModelTemplate() {
   // Generate data when dataset changes
   useEffect(() => {
     try {
-      const newData = generateDataset(dataset, sampleSize, randomSeed + datasetVersion, featureMode);
+      const newData = generateDataset(dataset, sampleSize, randomSeed + datasetVersion, featureMode, randomDataRecipe);
       setData(newData);
       setError(null);
     } catch {
       setError('Failed to generate dataset. Please try again.');
     }
-  }, [dataset, sampleSize, randomSeed, datasetVersion, featureMode, setData, setError]);
+  }, [dataset, sampleSize, randomSeed, datasetVersion, featureMode, randomDataRecipe, setData, setError]);
 
   // Compute metrics when parameters or data change
   useEffect(() => {
@@ -99,29 +115,122 @@ export function InteractiveModelTemplate() {
   }, [error]);
 
   useEffect(() => {
-    if (viewMode === 'deep_dive') {
-      setFocusPanel('none');
-    }
+    if (viewMode === 'deep_dive') setFocusPanel('none');
   }, [viewMode]);
+
+  useEffect(() => {
+    const handleGuard = () => {
+      const isSmall = window.innerWidth < 1200;
+      if (!isSmall) {
+        setShowLoadGuardHint(false);
+        return;
+      }
+      const openPanelCount = (showEquation ? 1 : 0)
+        + (showAssumptions ? 1 : 0)
+        + (showClassificationDiagnostics ? 1 : 0)
+        + (showOlsSolution ? 1 : 0)
+        + (compareWithOls ? 1 : 0)
+        + (viewMode === 'deep_dive' ? 2 : 0);
+      setShowLoadGuardHint(openPanelCount >= 4 && viewMode === 'deep_dive');
+    };
+    handleGuard();
+    window.addEventListener('resize', handleGuard);
+    return () => window.removeEventListener('resize', handleGuard);
+  }, [
+    viewMode,
+    showEquation,
+    showAssumptions,
+    showClassificationDiagnostics,
+    showOlsSolution,
+    compareWithOls,
+  ]);
 
   const fittedForFormula = useMemo(
     () => (data.length > 0 ? fitRegressionModel(data, modelType, params) : null),
     [data, modelType, params]
   );
   const currentFormula = latexForModel(modelType, params, fittedForFormula);
+  const dimensionalityCompare = useMemo(() => {
+    if (taskMode !== 'regression' || data.length === 0) return null;
+    const pcrMetrics = evaluateModelMetrics(
+      data,
+      'pcr_regressor',
+      { ...params, pcaComponents: params.pcaComponents ?? 2 },
+      evaluationMode,
+      testRatio,
+      cvFolds,
+      randomSeed + datasetVersion
+    );
+    const plsMetrics = evaluateModelMetrics(
+      data,
+      'pls_regressor',
+      { ...params, plsComponents: params.plsComponents ?? 2 },
+      evaluationMode,
+      testRatio,
+      cvFolds,
+      randomSeed + datasetVersion
+    );
+    return { pcrMetrics, plsMetrics };
+  }, [taskMode, data, params, evaluationMode, testRatio, cvFolds, randomSeed, datasetVersion]);
+  const fitSuitability = useMemo(() => {
+    if (taskMode !== 'regression') return 'Good match';
+    if (featureMode === '2d' && !supports2D(modelType)) return 'Likely underfit';
+    if ((dataset === 'quadratic' || dataset === 'sinusoidal') && ['ols', 'ridge', 'lasso', 'elasticnet'].includes(modelType)) return 'Likely underfit';
+    if ((dataset === 'noisy' || dataset === 'outliers') && modelType === 'ols') return 'Likely high variance';
+    return 'Good match';
+  }, [taskMode, featureMode, modelType, dataset]);
+  const tourSteps = [
+    'Select a dataset in Data Studio.',
+    'Choose a model family and active model.',
+    'Adjust one hyperparameter.',
+    'Validate impact using metrics.',
+    'Open diagnostics and inspect errors.',
+    'Apply one model-specific playbook action.',
+  ];
+
+  useEffect(() => {
+    const seen = window.localStorage.getItem('mls_tour_seen');
+    if (!seen) {
+      setOnboardingState('in_progress');
+      setTourStep(0);
+    }
+  }, [setOnboardingState]);
+
+  useEffect(() => {
+    if (viewMode !== 'deep_dive') return;
+    setRenderLensSection(true);
+    const t1 = window.setTimeout(() => setRenderDiagnosticsPanel(true), 80);
+    const t2 = window.setTimeout(() => setRenderDimReductionSection(true), 140);
+    const t3 = window.setTimeout(() => setRenderMissionsSection(true), 200);
+    const t4 = window.setTimeout(() => setRenderPlaybookSection(true), 260);
+    const t5 = window.setTimeout(() => setRenderExportSection(true), 320);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+      window.clearTimeout(t4);
+      window.clearTimeout(t5);
+    };
+  }, [viewMode]);
+
+  const lazyFallback = <div className="rounded-xl border border-border-subtle p-2.5 text-xs text-text-tertiary">Loading panel...</div>;
 
   const renderDiagnosticsSection = (compact = false, forceVisible = false) => {
     if (taskMode === 'regression' && (showAssumptions || forceVisible)) {
       return (
         <section className={`material-panel ${compact ? 'p-2.5' : 'p-3'} motion-stagger`} style={{ ['--stagger-index' as any]: 2 }}>
-          <AssumptionChecker sidebarCollapsed={sidebarCollapsed} compact={compact} />
+          <Suspense fallback={lazyFallback}>
+            <LazyAssumptionChecker sidebarCollapsed={sidebarCollapsed} compact={compact} />
+          </Suspense>
         </section>
       );
     }
     if (taskMode === 'classification' && (showClassificationDiagnostics || forceVisible)) {
       return (
         <section className={`material-panel ${compact ? 'p-2.5' : 'p-3'} motion-stagger`} style={{ ['--stagger-index' as any]: 2 }}>
-          <ClassificationDiagnostics sidebarCollapsed={sidebarCollapsed} compact={compact} />
+          <Suspense fallback={lazyFallback}>
+            <LazyClassificationDiagnostics sidebarCollapsed={sidebarCollapsed} compact={compact} />
+          </Suspense>
         </section>
       );
     }
@@ -164,9 +273,63 @@ export function InteractiveModelTemplate() {
                   Classification
                 </button>
               </div>
+              <button
+                type="button"
+                className="theme-toggle-chip"
+                onClick={() => {
+                  setOnboardingState('in_progress');
+                  setTourStep(0);
+                }}
+              >
+                Tour
+              </button>
               <ThemeToggle />
             </nav>
           </div>
+          {onboardingState === 'in_progress' && (
+            <section className="mt-2 material-panel p-2.5">
+              <div className="flex items-center justify-between mb-1.5">
+                <h3 className="panel-title">Interactive Tour</h3>
+                <span className="text-[11px] text-text-tertiary">Step {tourStep + 1}/{tourSteps.length}</span>
+              </div>
+              <p className="text-sm text-text-secondary mb-2">{tourSteps[tourStep]}</p>
+              <div className="flex gap-1.5 flex-wrap">
+                <button type="button" className="quick-action" onClick={() => setTourStep((step) => Math.max(0, step - 1))}>Back</button>
+                <button
+                  type="button"
+                  className="quick-action quick-action-active"
+                  onClick={() => {
+                    if (tourStep >= tourSteps.length - 1) {
+                      setOnboardingState('completed');
+                      window.localStorage.setItem('mls_tour_seen', '1');
+                      return;
+                    }
+                    setTourStep((step) => step + 1);
+                  }}
+                >
+                  {tourStep >= tourSteps.length - 1 ? 'Finish' : 'Next'}
+                </button>
+                <button
+                  type="button"
+                  className="quick-action"
+                  onClick={() => {
+                    setOnboardingState('completed');
+                    window.localStorage.setItem('mls_tour_seen', '1');
+                  }}
+                >
+                  Skip
+                </button>
+              </div>
+            </section>
+          )}
+          {showLoadGuardHint && (
+            <section className="mt-2 material-panel-soft px-3 py-2 text-xs text-text-secondary flex items-center justify-between gap-2">
+              <span>Cognitive Load Guard suggestion: many panels are open for this viewport. Consider collapsing extras for readability.</span>
+              <button type="button" className="quick-action" onClick={() => setShowLoadGuardHint(false)}>
+                Dismiss
+              </button>
+            </section>
+          )}
         </div>
       </header>
 
@@ -271,6 +434,14 @@ export function InteractiveModelTemplate() {
                   <span className="status-pill">n = {data.length}</span>
                   <span className="status-pill">Seed {randomSeed + datasetVersion}</span>
                   <span className="status-pill">Mode: {taskMode}</span>
+                  <button
+                    type="button"
+                    onClick={() => togglePinnedModel(modelType)}
+                    className={`status-pill ${comparePinnedModels.includes(modelType) ? 'border-accent/50 text-accent' : ''}`}
+                  >
+                    {comparePinnedModels.includes(modelType) ? 'Pinned' : 'Pin model'}
+                  </button>
+                  {taskMode === 'regression' && <span className="status-pill">Fit: {fitSuitability}</span>}
                   <div className="theme-toggle-shell">
                     <button
                       type="button"
@@ -285,22 +456,6 @@ export function InteractiveModelTemplate() {
                       onClick={() => setHeroLayoutMode('expanded')}
                     >
                       Expanded
-                    </button>
-                  </div>
-                  <div className="theme-toggle-shell">
-                    <button
-                      type="button"
-                      className={`theme-toggle-chip ${viewMode === 'focus' ? 'theme-toggle-chip-active' : ''}`}
-                      onClick={() => setViewMode('focus')}
-                    >
-                      Focus
-                    </button>
-                    <button
-                      type="button"
-                      className={`theme-toggle-chip ${viewMode === 'deep_dive' ? 'theme-toggle-chip-active' : ''}`}
-                      onClick={() => setViewMode('deep_dive')}
-                    >
-                      Deep Dive
                     </button>
                   </div>
                 </div>
@@ -332,30 +487,11 @@ export function InteractiveModelTemplate() {
                   </p>
                 </div>
                 )}
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className={`grid gap-1.5 ${taskMode === 'regression' ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   <button type="button" onClick={regenerateDataset} className="quick-action">
                     <Shuffle className="w-3.5 h-3.5" />
                     <span>Resample</span>
                   </button>
-                  {taskMode === 'classification' ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowClassificationDiagnostics(!showClassificationDiagnostics)}
-                      className={`quick-action ${showClassificationDiagnostics ? 'quick-action-active' : ''}`}
-                    >
-                      <TestTube2 className="w-3.5 h-3.5" />
-                      <span>Diagnostics</span>
-                    </button>
-                  ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowAssumptions(!showAssumptions)}
-                    className={`quick-action ${showAssumptions ? 'quick-action-active' : ''}`}
-                  >
-                    <TestTube2 className="w-3.5 h-3.5" />
-                    <span>Diagnostics</span>
-                  </button>
-                  )}
                   {taskMode === 'regression' && (
                   <button
                     type="button"
@@ -364,16 +500,6 @@ export function InteractiveModelTemplate() {
                   >
                     <Layers2 className="w-3.5 h-3.5" />
                     <span>OLS Overlay</span>
-                  </button>
-                  )}
-                  {taskMode === 'regression' && (
-                  <button
-                    type="button"
-                    onClick={() => setCompareWithOls(!compareWithOls)}
-                    className={`quick-action ${compareWithOls ? 'quick-action-active' : ''}`}
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Compare OLS</span>
                   </button>
                   )}
                 </div>
@@ -468,22 +594,28 @@ export function InteractiveModelTemplate() {
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="panel-title">Bias-Variance Lens</h3>
                 </div>
-                <LearningInsights sidebarCollapsed={sidebarCollapsed} compact />
+                <Suspense fallback={lazyFallback}>
+                  <LazyLearningInsights sidebarCollapsed={sidebarCollapsed} compact />
+                </Suspense>
               </section>
             )}
             {viewMode === 'focus' && focusPanel === 'diagnostics' && renderDiagnosticsSection(true, true)}
             {viewMode === 'focus' && focusPanel === 'playbook' && (
               <section className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
-                <ClassicalContentPanel compact />
+                <Suspense fallback={lazyFallback}>
+                  <LazyClassicalContentPanel compact />
+                </Suspense>
               </section>
             )}
             {viewMode === 'focus' && focusPanel === 'missions' && featureFlags.ff_learning_missions && (
               <section className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
-                <ScenarioMissions compact />
+                <Suspense fallback={lazyFallback}>
+                  <LazyScenarioMissions compact />
+                </Suspense>
               </section>
             )}
 
-            {viewMode === 'deep_dive' && (
+            {viewMode === 'deep_dive' && renderLensSection && (
               <section className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="panel-title">
@@ -493,35 +625,83 @@ export function InteractiveModelTemplate() {
                     {taskMode === 'classification' ? 'Decision boundaries and threshold effects' : 'Underfit vs overfit behavior'}
                   </div>
                 </div>
-                <LearningInsights sidebarCollapsed={sidebarCollapsed} compact />
+                <Suspense fallback={lazyFallback}>
+                  <LazyLearningInsights sidebarCollapsed={sidebarCollapsed} compact />
+                </Suspense>
               </section>
             )}
 
-            {viewMode === 'deep_dive' && renderDiagnosticsSection(true, true)}
+            {viewMode === 'deep_dive' && renderDiagnosticsPanel && renderDiagnosticsSection(true, true)}
 
-            {viewMode === 'deep_dive' && featureFlags.ff_learning_missions && (
+            {viewMode === 'deep_dive' && renderDimReductionSection && taskMode === 'regression' && dimensionalityCompare && (
               <section className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
-                <ScenarioMissions />
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="panel-title">Dimensionality Reduction Lab</h3>
+                  <span className="text-[11px] text-text-tertiary">PCR and PLS on current data split</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className={`mission-card text-left ${modelType === 'pcr_regressor' ? 'mission-card-success' : ''}`}
+                    onClick={() => {
+                      setModelType('pcr_regressor');
+                      setParam('pcaComponents', Math.max(1, params.pcaComponents ?? 2));
+                    }}
+                  >
+                    <p className="text-sm font-medium text-text-primary">PCR</p>
+                    <p className="text-xs text-text-secondary mt-1">R² {dimensionalityCompare.pcrMetrics.r2.toFixed(3)} · RMSE {dimensionalityCompare.pcrMetrics.rmse.toFixed(3)}</p>
+                    <p className="text-[11px] text-text-tertiary mt-1">Principal components then linear regression.</p>
+                  </button>
+                  <button
+                    type="button"
+                    className={`mission-card text-left ${modelType === 'pls_regressor' ? 'mission-card-success' : ''}`}
+                    onClick={() => {
+                      setModelType('pls_regressor');
+                      setParam('plsComponents', Math.max(1, params.plsComponents ?? 2));
+                    }}
+                  >
+                    <p className="text-sm font-medium text-text-primary">PLS</p>
+                    <p className="text-xs text-text-secondary mt-1">R² {dimensionalityCompare.plsMetrics.r2.toFixed(3)} · RMSE {dimensionalityCompare.plsMetrics.rmse.toFixed(3)}</p>
+                    <p className="text-[11px] text-text-tertiary mt-1">Latent factors aligned with target variation.</p>
+                  </button>
+                </div>
+                <div className="mt-2">
+                  <Suspense fallback={lazyFallback}>
+                    <LazyDimensionalityReductionLab />
+                  </Suspense>
+                </div>
               </section>
             )}
 
-            {viewMode === 'deep_dive' && (
+            {viewMode === 'deep_dive' && renderMissionsSection && featureFlags.ff_learning_missions && (
+              <section className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
+                <Suspense fallback={lazyFallback}>
+                  <LazyScenarioMissions />
+                </Suspense>
+              </section>
+            )}
+
+            {viewMode === 'deep_dive' && renderPlaybookSection && (
               <section className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="panel-title">Classical ML Playbook</h3>
                   <div className="text-xs text-text-tertiary">Action-focused learning cues</div>
                 </div>
-                <ClassicalContentPanel />
+                <Suspense fallback={lazyFallback}>
+                  <LazyClassicalContentPanel />
+                </Suspense>
               </section>
             )}
 
-            {viewMode === 'deep_dive' && (
+            {viewMode === 'deep_dive' && renderExportSection && (
               <div className="grid grid-cols-1 gap-3">
                 <section className="material-panel p-3 motion-stagger" style={{ ['--stagger-index' as any]: 5 }}>
                   <h3 className="panel-title mb-2">
                     Python Export
                   </h3>
-                  <CodeExporter />
+                  <Suspense fallback={lazyFallback}>
+                    <LazyCodeExporter />
+                  </Suspense>
                 </section>
               </div>
             )}

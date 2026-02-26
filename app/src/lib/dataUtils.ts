@@ -1,4 +1,4 @@
-import type { DataPoint, DatasetType, EvaluationMode, ModelParams, ModelType } from '../store/modelStore';
+import type { DataPoint, DatasetType, EvaluationMode, ModelParams, ModelType, RandomDataRecipe } from '../store/modelStore';
 
 interface LinearSolution {
   intercept: number;
@@ -324,6 +324,83 @@ function predictFromLinearSolution(x: number, powers: number[], solution: Linear
   return prediction;
 }
 
+function expandPolynomialFeatures(features: number[], degree: number): number[] {
+  const dim = features.length;
+  const terms: number[] = [];
+  const clampedDegree = Math.max(1, Math.min(degree, 6));
+
+  const build = (start: number, depth: number, product: number) => {
+    if (depth > 0) terms.push(product);
+    if (depth === clampedDegree) return;
+    for (let i = start; i < dim; i++) {
+      build(i, depth + 1, product * (features[i] ?? 0));
+    }
+  };
+
+  build(0, 0, 1);
+  return terms;
+}
+
+function covarianceMatrix(xMatrix: number[][]): number[][] {
+  const n = Math.max(1, xMatrix.length);
+  const p = xMatrix[0]?.length ?? 0;
+  const means = Array.from({ length: p }, (_, j) => mean(xMatrix.map((row) => row[j])));
+  const centered = xMatrix.map((row) => row.map((value, j) => value - means[j]));
+  const cov = Array.from({ length: p }, () => Array.from({ length: p }, () => 0));
+  for (let i = 0; i < centered.length; i++) {
+    for (let a = 0; a < p; a++) {
+      for (let b = 0; b < p; b++) {
+        cov[a][b] += centered[i][a] * centered[i][b];
+      }
+    }
+  }
+  for (let a = 0; a < p; a++) {
+    for (let b = 0; b < p; b++) cov[a][b] /= Math.max(n - 1, 1);
+  }
+  return cov;
+}
+
+function normalizeVector(v: number[]): number[] {
+  const norm = Math.sqrt(v.reduce((sum, value) => sum + value * value, 0));
+  if (norm < 1e-10) return v.map(() => 0);
+  return v.map((value) => value / norm);
+}
+
+function matVec(mat: number[][], vec: number[]): number[] {
+  return mat.map((row) => row.reduce((sum, value, j) => sum + value * (vec[j] ?? 0), 0));
+}
+
+function dot(a: number[], b: number[]): number {
+  return a.reduce((sum, value, i) => sum + value * (b[i] ?? 0), 0);
+}
+
+function computePcaComponents(xMatrix: number[][], k: number): { components: number[][]; means: number[] } {
+  const p = xMatrix[0]?.length ?? 0;
+  const means = Array.from({ length: p }, (_, j) => mean(xMatrix.map((row) => row[j])));
+  if (p === 0) return { components: [], means };
+  let cov = covarianceMatrix(xMatrix);
+  const components: number[][] = [];
+  const compCount = Math.max(1, Math.min(k, p));
+  const random = createSeededRandom(p * 37 + xMatrix.length * 11);
+
+  for (let c = 0; c < compCount; c++) {
+    let v = normalizeVector(Array.from({ length: p }, () => random() - 0.5));
+    for (let it = 0; it < 50; it++) v = normalizeVector(matVec(cov, v));
+    components.push(v);
+    const lambda = dot(v, matVec(cov, v));
+    for (let i = 0; i < p; i++) {
+      for (let j = 0; j < p; j++) cov[i][j] -= lambda * v[i] * v[j];
+    }
+  }
+
+  return { components, means };
+}
+
+function projectToComponents(features: number[], means: number[], components: number[][]): number[] {
+  const centered = features.map((value, i) => value - (means[i] ?? 0));
+  return components.map((component) => dot(centered, component));
+}
+
 function rssForPowers(data: DataPoint[], powers: number[]): { rss: number; solution: LinearSolution } {
   const solution = fitLeastSquaresWithPowers(data, powers, 0);
   let rss = 0;
@@ -582,7 +659,13 @@ function fitBestWeightedStump(samples: TreeSample[], weights: number[]): { stump
   return { stump: best, error: Math.min(Math.max(bestError, 1e-8), 1 - 1e-8) };
 }
 
-export function generateDataset(type: DatasetType, n = 50, seed = Date.now(), featureMode: '1d' | '2d' = '1d'): DataPoint[] {
+export function generateDataset(
+  type: DatasetType,
+  n = 50,
+  seed = Date.now(),
+  featureMode: '1d' | '2d' = '1d',
+  recipe?: RandomDataRecipe
+): DataPoint[] {
   const points: DataPoint[] = [];
   const random = createSeededRandom(seed);
   const trueSlope = 1.8;
@@ -652,9 +735,15 @@ export function generateDataset(type: DatasetType, n = 50, seed = Date.now(), fe
 
   for (let i = 0; i < n; i++) {
     const x = -5 + (10 * i) / Math.max(n - 1, 1);
-    const x2 = featureMode === '2d' ? -4 + random() * 8 : undefined;
+    const x2 = featureMode === '2d'
+      ? (recipe?.correlatedFeatures ? x * 0.55 + (random() - 0.5) * 2.2 : -4 + random() * 8)
+      : undefined;
     let y: number;
-    const noise = (random() - 0.5) * 3;
+    const gaussianNoise = (random() - 0.5) * 3;
+    const heavyTailNoise = ((random() - 0.5) / Math.max(0.08, random())) * 0.8;
+    const heteroNoise = gaussianNoise * (0.6 + Math.abs(x) / 2.2);
+    const noiseMode = type === 'random_recipe' ? (recipe?.noiseType ?? 'gaussian') : 'gaussian';
+    const noise = noiseMode === 'heavy_tail' ? heavyTailNoise : noiseMode === 'heteroscedastic' ? heteroNoise : gaussianNoise;
 
     switch (type) {
       case 'linear':
@@ -679,6 +768,25 @@ export function generateDataset(type: DatasetType, n = 50, seed = Date.now(), fe
         y = x < -1 ? -1.7 * x + 1.8 : x < 2 ? 0.7 * x - 0.3 : 2.4 * x - 4.2;
         y += (x2 !== undefined ? 0.5 * x2 : 0) + noise * 0.8;
         break;
+      case 'random_recipe': {
+        const pattern = recipe?.pattern ?? 'linear';
+        if (pattern === 'linear') {
+          y = trueSlope * x + trueIntercept + (x2 !== undefined ? 0.8 * x2 : 0) + noise * 0.55;
+        } else if (pattern === 'polynomial') {
+          y = 0.35 * x * x + 0.75 * x - 0.7 + (x2 !== undefined ? 0.22 * x2 * x2 : 0) + noise * 0.65;
+        } else if (pattern === 'sinusoidal') {
+          y = 2.0 * Math.sin(x) + 0.25 * x + (x2 !== undefined ? 0.8 * Math.cos(x2) : 0) + noise * 0.7;
+        } else if (pattern === 'piecewise') {
+          y = x < -1.5 ? -1.5 * x + 1.4 : x < 1.5 ? 0.6 * x - 0.4 : 2.0 * x - 2.5;
+          y += (x2 !== undefined ? 0.45 * x2 : 0) + noise * 0.6;
+        } else {
+          y = 0.45 * x * x + 1.3 * Math.sin(x) + 0.45 * x + (x2 !== undefined ? 0.35 * x2 : 0) + noise * 0.8;
+        }
+        const outlierLevel = recipe?.outlierLevel ?? 'none';
+        const outlierProb = outlierLevel === 'none' ? 0 : outlierLevel === 'low' ? 0.03 : outlierLevel === 'medium' ? 0.08 : 0.14;
+        if (random() < outlierProb) y += noise * 6.5;
+        break;
+      }
       default:
         y = trueSlope * x + trueIntercept + (x2 !== undefined ? x2 : 0) + noise * 0.2;
     }
@@ -934,6 +1042,109 @@ export function fitRegressionModel(data: DataPoint[], modelType: ModelType, para
     };
   }
 
+  if (modelType === 'svm_regressor') {
+    const gamma = Math.max(params.svmGamma ?? 1, 0.01);
+    const c = Math.max(params.svmC ?? 1, 0.01);
+    const centers = seededShuffle(
+      data.map((point) => getPointFeatures(point)),
+      data.length * 41 + 17
+    ).slice(0, Math.min(40, data.length));
+    const phi = data.map((point) => centers.map((center) => rbfKernel(getPointFeatures(point), center, gamma)));
+    const p = centers.length;
+    const xtx = Array.from({ length: p }, () => Array.from({ length: p }, () => 0));
+    const xty = Array.from({ length: p }, () => 0);
+    const y = data.map((point) => point.y);
+    const yMean = mean(y);
+    const phiMeans = Array.from({ length: p }, (_, j) => mean(phi.map((row) => row[j])));
+    for (let i = 0; i < phi.length; i++) {
+      for (let a = 0; a < p; a++) {
+        const va = phi[i][a] - phiMeans[a];
+        xty[a] += va * (y[i] - yMean);
+        for (let b = 0; b < p; b++) xtx[a][b] += va * (phi[i][b] - phiMeans[b]);
+      }
+    }
+    const ridge = 1 / c;
+    for (let i = 0; i < p; i++) xtx[i][i] += ridge * data.length;
+    const weights = solveLinearSystem(xtx, xty);
+    const intercept = yMean - weights.reduce((sum, w, i) => sum + w * phiMeans[i], 0);
+    return {
+      modelType,
+      intercept,
+      coefficients: weights,
+      featurePowers: [],
+      predict: (input) => {
+        const x = toFeatureArray(input);
+        let pred = intercept;
+        for (let j = 0; j < weights.length; j++) pred += weights[j] * rbfKernel(x, centers[j], gamma);
+        return pred;
+      },
+    };
+  }
+
+  if (modelType === 'pcr_regressor' || modelType === 'pls_regressor') {
+    const xMatrix = data.map((point) => getPointFeatures(point));
+    const y = data.map((point) => point.y);
+    const compCount = Math.max(
+      1,
+      Math.min(modelType === 'pls_regressor' ? (params.plsComponents ?? 2) : (params.pcaComponents ?? 2), xMatrix[0]?.length ?? 1)
+    );
+
+    if (modelType === 'pcr_regressor') {
+      const { components, means } = computePcaComponents(xMatrix, compCount);
+      const scores = xMatrix.map((features) => projectToComponents(features, means, components));
+      const scoreData = scores.map((s, i) => ({ x: s[0] ?? 0, x2: s[1], features: s, y: y[i] }));
+      const solution = fitLeastSquaresMulti(scoreData, Math.max(params.alpha, 0));
+      return {
+        modelType,
+        intercept: solution.intercept,
+        coefficients: solution.coefficients,
+        featurePowers: [],
+        predict: (input) => {
+          const features = toFeatureArray(input);
+          const proj = projectToComponents(features, means, components);
+          return predictFromMultiSolution(proj, solution);
+        },
+      };
+    }
+
+    // Simplified PLS via iterative latent directions using covariance with y.
+    const p = xMatrix[0]?.length ?? 1;
+    const meansX = Array.from({ length: p }, (_, j) => mean(xMatrix.map((row) => row[j])));
+    const centeredX = xMatrix.map((row) => row.map((value, j) => value - meansX[j]));
+    const yMean = mean(y);
+    const centeredY = y.map((value) => value - yMean);
+    const components: number[][] = [];
+    let Xwork = centeredX.map((row) => [...row]);
+    let ywork = [...centeredY];
+    for (let c = 0; c < compCount; c++) {
+      const wRaw = Array.from({ length: p }, (_, j) =>
+        Xwork.reduce((sum, row, i) => sum + row[j] * ywork[i], 0)
+      );
+      const w = normalizeVector(wRaw);
+      components.push(w);
+      const t = Xwork.map((row) => dot(row, w));
+      const denom = Math.max(dot(t, t), 1e-8);
+      const pLoad = Array.from({ length: p }, (_, j) => Xwork.reduce((sum, row, i) => sum + row[j] * t[i], 0) / denom);
+      const q = dot(ywork, t) / denom;
+      Xwork = Xwork.map((row, i) => row.map((value, j) => value - t[i] * pLoad[j]));
+      ywork = ywork.map((value, i) => value - q * t[i]);
+    }
+    const scores = centeredX.map((row) => components.map((comp) => dot(row, comp)));
+    const scoreData = scores.map((s, i) => ({ x: s[0] ?? 0, x2: s[1], features: s, y: y[i] }));
+    const solution = fitLeastSquaresMulti(scoreData, Math.max(params.alpha, 0));
+    return {
+      modelType,
+      intercept: solution.intercept,
+      coefficients: solution.coefficients,
+      featurePowers: [],
+      predict: (input) => {
+        const features = toFeatureArray(input).map((value, j) => value - (meansX[j] ?? 0));
+        const proj = components.map((comp) => dot(features, comp));
+        return predictFromMultiSolution(proj, solution);
+      },
+    };
+  }
+
   if (modelType === 'ols') {
     const powers = featureCount === 1 ? [1] : [];
     const solution = featureCount === 1 ? fitLeastSquaresWithPowers(data, powers, 0) : fitLeastSquaresMulti(data, 0);
@@ -1007,13 +1218,21 @@ export function fitRegressionModel(data: DataPoint[], modelType: ModelType, para
 
   if (modelType === 'polynomial') {
     if (featureCount > 1) {
-      const solution = fitLeastSquaresMulti(data, 0);
+      const degree = Math.max(1, Math.min(params.polynomialDegree, 6));
+      const transformed = data.map((point) => {
+        const f = getPointFeatures(point);
+        return {
+          ...point,
+          features: expandPolynomialFeatures(f, degree),
+        };
+      });
+      const solution = fitLeastSquaresMulti(transformed, 0);
       return {
-        modelType: 'ols',
+        modelType,
         intercept: solution.intercept,
         coefficients: solution.coefficients,
         featurePowers: [],
-        predict: (input) => predictFromMultiSolution(input, solution),
+        predict: (input) => predictFromMultiSolution(expandPolynomialFeatures(toFeatureArray(input), degree), solution),
       };
     }
     const degree = Math.max(1, Math.min(params.polynomialDegree, 6));
@@ -1528,6 +1747,36 @@ export function computeOLSSolution(data: DataPoint[]): { slope: number; intercep
   };
 }
 
+export function supports2D(modelType: ModelType): boolean {
+  return !(
+    modelType === 'forward_stepwise'
+    || modelType === 'backward_stepwise'
+  );
+}
+
+export function recommendedDatasets(modelType: ModelType): DatasetType[] {
+  const map: Record<ModelType, DatasetType[]> = {
+    ols: ['linear', 'noisy'],
+    ridge: ['noisy', 'heteroscedastic', 'random_recipe'],
+    lasso: ['noisy', 'piecewise', 'random_recipe'],
+    elasticnet: ['noisy', 'piecewise', 'random_recipe'],
+    polynomial: ['quadratic', 'sinusoidal'],
+    forward_stepwise: ['quadratic', 'piecewise'],
+    backward_stepwise: ['quadratic', 'piecewise'],
+    svm_regressor: ['sinusoidal', 'random_recipe', 'noisy'],
+    pcr_regressor: ['noisy', 'heteroscedastic', 'random_recipe'],
+    pls_regressor: ['noisy', 'heteroscedastic', 'random_recipe'],
+    logistic_classifier: ['class_linear', 'class_imbalanced'],
+    knn_classifier: ['class_moons', 'class_overlap'],
+    svm_classifier: ['class_overlap', 'class_moons'],
+    decision_tree_classifier: ['class_overlap', 'class_linear'],
+    random_forest_classifier: ['class_overlap', 'class_imbalanced'],
+    adaboost_classifier: ['class_overlap', 'class_imbalanced'],
+    gradient_boosting_classifier: ['class_overlap', 'class_imbalanced'],
+  };
+  return map[modelType] ?? ['random_recipe'];
+}
+
 export function latexForModel(modelType: ModelType, params: ModelParams, fit: RegressionFit | null = null): string {
   if (modelType === 'ols') {
     return '\\hat{y} = \\beta_0 + \\beta_1 x';
@@ -1571,6 +1820,15 @@ export function latexForModel(modelType: ModelType, params: ModelParams, fit: Re
   }
   if (modelType === 'gradient_boosting_classifier') {
     return '\\hat{P}(y=1|x)=\\sigma\\left(f_0(x)+\\sum_{m=1}^{M}\\eta h_m(x)\\right)';
+  }
+  if (modelType === 'svm_regressor') {
+    return '\\hat{y}=\\sum_i\\alpha_i K(x, x_i)+b';
+  }
+  if (modelType === 'pcr_regressor') {
+    return '\\hat{y}=\\beta_0+\\sum_{k=1}^{m}\\beta_k\\mathrm{PC}_k(x)';
+  }
+  if (modelType === 'pls_regressor') {
+    return '\\hat{y}=\\beta_0+\\sum_{k=1}^{m}\\beta_k t_k(x)';
   }
   return '\\hat{y} = \\beta_0 + \\beta_1 x';
 }
@@ -1707,11 +1965,41 @@ print(f"RMSE: {np.sqrt(mean_squared_error(y, y_pred)):.4f}")
 print(f"MAE: {mean_absolute_error(y, y_pred):.4f}")`;
   }
 
+  if (modelType === 'pcr_regressor' || modelType === 'pls_regressor') {
+    const comp = modelType === 'pcr_regressor'
+      ? Math.max(1, Math.round(params.pcaComponents ?? 2))
+      : Math.max(1, Math.round(params.plsComponents ?? 2));
+    const transformer = modelType === 'pcr_regressor'
+      ? `PCA(n_components=${comp})`
+      : `PLSRegression(n_components=${comp})`;
+    const reg = modelType === 'pcr_regressor'
+      ? `LinearRegression()`
+      : `None`;
+    return `from sklearn.decomposition import PCA
+from sklearn.cross_decomposition import PLSRegression
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+import numpy as np
+
+X = np.array(data_x).reshape(-1, ${featureCount})
+y = np.array(data_y)
+model = ${modelType === 'pcr_regressor'
+  ? `Pipeline([("pca", ${transformer}), ("regressor", ${reg})])`
+  : transformer}
+${evaluationBlock}
+
+print(f"R² Score: {r2_score(y_eval, y_pred):.4f}")
+print(f"RMSE: {np.sqrt(mean_squared_error(y_eval, y_pred)):.4f}")
+print(f"MAE: {mean_absolute_error(y_eval, y_pred):.4f}")`;
+  }
+
   const modelMap: Record<string, string> = {
     ols: 'LinearRegression',
     ridge: 'Ridge',
     lasso: 'Lasso',
     elasticnet: 'ElasticNet',
+    svm_regressor: 'SVR',
   };
   const className = modelMap[modelType] ?? 'LinearRegression';
 
@@ -1723,7 +2011,12 @@ print(f"MAE: {mean_absolute_error(y, y_pred):.4f}")`;
     args = `alpha=${params.alpha.toFixed(4)}, l1_ratio=${params.l1Ratio.toFixed(4)}`;
   }
 
+  if (modelType === 'svm_regressor') {
+    args = `C=${Math.max(params.svmC, 0.01).toFixed(4)}, gamma=${Math.max(params.svmGamma, 0.01).toFixed(4)}, epsilon=${Math.max(params.svmEpsilon ?? 0.1, 0.01).toFixed(4)}`;
+  }
+
   return `from sklearn.linear_model import ${className}
+from sklearn.svm import SVR
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 import numpy as np
 

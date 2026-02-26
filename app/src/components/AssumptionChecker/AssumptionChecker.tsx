@@ -75,9 +75,10 @@ export function AssumptionChecker({ sidebarCollapsed = false, compact = false }:
   return (
     <div className={compact ? 'space-y-3' : 'space-y-4'}>
       <div className="flex items-center justify-between">
-        <h3 className="panel-title">
-          Model Diagnostics
-        </h3>
+        <div>
+          <h3 className="panel-title">Model Diagnostics</h3>
+          <p className="text-[11px] text-text-tertiary mt-1">Checks residual randomness, variance stability, and distribution tails.</p>
+        </div>
         <div className="flex gap-4">
           <div className="flex items-center gap-1.5">
             {isMeanZero ? (
@@ -203,6 +204,7 @@ export function AssumptionChecker({ sidebarCollapsed = false, compact = false }:
       </div>
 
       <div className="text-xs text-text-secondary space-y-1">
+        <p className="text-[11px] text-text-tertiary">Action guide: if residuals show pattern/funnel/tail drift, reduce complexity or switch to regularized alternatives.</p>
         <p className="inline-flex items-start gap-1.5">
           <strong className="text-text-primary">Residuals vs Fitted:</strong>
           Random horizontal spread supports linearity and constant variance; fan-shapes indicate heteroscedasticity or missing nonlinear terms.

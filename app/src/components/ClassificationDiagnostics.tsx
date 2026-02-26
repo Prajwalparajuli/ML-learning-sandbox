@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Plot from 'react-plotly.js';
 import { useTheme } from 'next-themes';
 import { useModelStore } from '../store/modelStore';
@@ -12,6 +12,7 @@ interface ClassificationDiagnosticsProps {
 }
 
 export function ClassificationDiagnostics({ sidebarCollapsed = false, compact = false }: ClassificationDiagnosticsProps) {
+  const [showConfidenceView, setShowConfidenceView] = useState(false);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const axisText = isDark ? '#94a3b8' : '#475569';
@@ -40,6 +41,56 @@ export function ClassificationDiagnostics({ sidebarCollapsed = false, compact = 
     return computeClassificationDiagnostics(yTrue, yProb, threshold);
   }, [data, evaluationMode, split, modelType, params, threshold]);
 
+  const confidenceDiagnostics = useMemo(() => {
+    const evalSet = evaluationMode === 'train_test' ? split.test : data;
+    const trainSet = evaluationMode === 'train_test' ? split.train : data;
+    if (evalSet.length === 0 || trainSet.length === 0) return null;
+    const fit = fitRegressionModel(trainSet, modelType, params);
+    const probs = evalSet.map((point) => Math.min(0.999, Math.max(0.001, fit.predict(point.features))));
+    const truth = evalSet.map((point) => point.y >= 0.5 ? 1 : 0);
+    const binCount = 8;
+    const bins = Array.from({ length: binCount }, (_, index) => ({
+      low: index / binCount,
+      high: (index + 1) / binCount,
+      avgProb: 0,
+      fracPos: 0,
+      count: 0,
+    }));
+    for (let i = 0; i < probs.length; i++) {
+      const p = probs[i];
+      const b = Math.min(binCount - 1, Math.floor(p * binCount));
+      bins[b].avgProb += p;
+      bins[b].fracPos += truth[i];
+      bins[b].count += 1;
+    }
+    const calib = bins
+      .filter((bin) => bin.count > 0)
+      .map((bin) => ({
+        x: bin.avgProb / bin.count,
+        y: bin.fracPos / bin.count,
+        n: bin.count,
+      }));
+
+    const thresholds = Array.from({ length: 19 }, (_, i) => Number((0.05 + i * 0.05).toFixed(2)));
+    const sens = thresholds.map((t) => {
+      let tp = 0;
+      let fp = 0;
+      let fn = 0;
+      for (let i = 0; i < probs.length; i++) {
+        const pred = probs[i] >= t ? 1 : 0;
+        if (pred === 1 && truth[i] === 1) tp += 1;
+        if (pred === 1 && truth[i] === 0) fp += 1;
+        if (pred === 0 && truth[i] === 1) fn += 1;
+      }
+      const precision = tp + fp === 0 ? 0 : tp / (tp + fp);
+      const recall = tp + fn === 0 ? 0 : tp / (tp + fn);
+      const f1 = precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall);
+      return { threshold: t, f1, precision, recall };
+    });
+
+    return { calibration: calib, sensitivity: sens };
+  }, [data, evaluationMode, split, modelType, params]);
+
   if (!diagnostic) return null;
   const [row0, row1] = diagnostic.confusion;
   const total = row0[0] + row0[1] + row1[0] + row1[1];
@@ -60,6 +111,13 @@ export function ClassificationDiagnostics({ sidebarCollapsed = false, compact = 
         <p className="text-xs text-text-secondary">
           Diagnostics evaluate {evaluationMode === 'train_test' ? 'held-out' : 'current'} samples at threshold {threshold.toFixed(2)}.
         </p>
+        <button
+          type="button"
+          className={`eval-chip !px-2.5 !py-1 ${showConfidenceView ? 'eval-chip-active' : ''}`}
+          onClick={() => setShowConfidenceView((value) => !value)}
+        >
+          Confidence View
+        </button>
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-2.5">
         <div className="plot-wrap code-block h-64 overflow-hidden">
@@ -187,6 +245,89 @@ export function ClassificationDiagnostics({ sidebarCollapsed = false, compact = 
             why="This separates boundary placement from ranking quality."
             tryNext="Shift threshold and compare confusion changes while ROC/PR stay threshold-agnostic."
           />
+        </div>
+      )}
+      {showConfidenceView && confidenceDiagnostics && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-2.5">
+          <div className="plot-wrap code-block h-56 overflow-hidden">
+            <Plot
+              data={[
+                {
+                  x: confidenceDiagnostics.calibration.map((point) => point.x),
+                  y: confidenceDiagnostics.calibration.map((point) => point.y),
+                  mode: 'lines+markers',
+                  type: 'scatter',
+                  marker: { size: confidenceDiagnostics.calibration.map((point) => Math.max(7, point.n + 4)), color: '#0ea5e9', opacity: 0.8 },
+                  line: { color: '#0284c7', width: 2 },
+                  name: 'Calibration bins',
+                },
+                {
+                  x: [0, 1],
+                  y: [0, 1],
+                  type: 'scatter',
+                  mode: 'lines',
+                  showlegend: false,
+                  line: { color: isDark ? 'rgba(148,163,184,0.45)' : 'rgba(100,116,139,0.45)', width: 1, dash: 'dot' },
+                  hoverinfo: 'skip',
+                },
+              ]}
+              layout={{
+                margin: { l: 46, r: 12, t: 28, b: 38 },
+                title: { text: 'Calibration Bins', font: { size: 12, color: axisText } },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: axisText, family: 'Inter, sans-serif' },
+                xaxis: { title: { text: 'Predicted probability' }, color: axisText, gridcolor: grid, zerolinecolor: zero, range: [0, 1] },
+                yaxis: { title: { text: 'Observed positive rate' }, color: axisText, gridcolor: grid, zerolinecolor: zero, range: [0, 1] },
+              }}
+              config={{ responsive: true, displayModeBar: false }}
+              useResizeHandler
+              style={{ width: '100%', height: '100%' }}
+            />
+          </div>
+          <div className="plot-wrap code-block h-56 overflow-hidden">
+            <Plot
+              data={[
+                {
+                  x: confidenceDiagnostics.sensitivity.map((point) => point.threshold),
+                  y: confidenceDiagnostics.sensitivity.map((point) => point.f1),
+                  type: 'scatter',
+                  mode: 'lines',
+                  name: 'F1',
+                  line: { color: '#10b981', width: 2 },
+                },
+                {
+                  x: confidenceDiagnostics.sensitivity.map((point) => point.threshold),
+                  y: confidenceDiagnostics.sensitivity.map((point) => point.precision),
+                  type: 'scatter',
+                  mode: 'lines',
+                  name: 'Precision',
+                  line: { color: '#f59e0b', width: 1.8 },
+                },
+                {
+                  x: confidenceDiagnostics.sensitivity.map((point) => point.threshold),
+                  y: confidenceDiagnostics.sensitivity.map((point) => point.recall),
+                  type: 'scatter',
+                  mode: 'lines',
+                  name: 'Recall',
+                  line: { color: '#2563eb', width: 1.8 },
+                },
+              ]}
+              layout={{
+                margin: { l: 46, r: 12, t: 28, b: 38 },
+                title: { text: 'Threshold Sensitivity', font: { size: 12, color: axisText } },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: axisText, family: 'Inter, sans-serif' },
+                xaxis: { title: { text: 'Decision threshold' }, color: axisText, gridcolor: grid, zerolinecolor: zero, range: [0.05, 0.95] },
+                yaxis: { title: { text: 'Score' }, color: axisText, gridcolor: grid, zerolinecolor: zero, range: [0, 1] },
+                legend: { x: 0.02, y: 0.98, bgcolor: legendBg, bordercolor: legendBorder, borderwidth: 1, font: { size: 10, color: axisText } },
+              }}
+              config={{ responsive: true, displayModeBar: false }}
+              useResizeHandler
+              style={{ width: '100%', height: '100%' }}
+            />
+          </div>
         </div>
       )}
     </div>

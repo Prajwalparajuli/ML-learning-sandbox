@@ -8,6 +8,9 @@ export type ModelType =
   | 'polynomial'
   | 'forward_stepwise'
   | 'backward_stepwise'
+  | 'svm_regressor'
+  | 'pcr_regressor'
+  | 'pls_regressor'
   | 'logistic_classifier'
   | 'knn_classifier'
   | 'svm_classifier'
@@ -26,8 +29,18 @@ export type DatasetType =
   | 'class_linear'
   | 'class_overlap'
   | 'class_moons'
-  | 'class_imbalanced';
+  | 'class_imbalanced'
+  | 'random_recipe';
 export type TaskMode = 'regression' | 'classification';
+export type OnboardingState = 'not_started' | 'in_progress' | 'completed';
+export type MissionTier = 'starter' | 'analyst' | 'expert';
+
+export interface RandomDataRecipe {
+  pattern: 'linear' | 'polynomial' | 'sinusoidal' | 'piecewise' | 'mixed';
+  noiseType: 'gaussian' | 'heteroscedastic' | 'heavy_tail';
+  outlierLevel: 'none' | 'low' | 'medium' | 'high';
+  correlatedFeatures: boolean;
+}
 
 export interface ModelParams {
   alpha: number;  // Regularization strength
@@ -37,10 +50,13 @@ export interface ModelParams {
   knnK: number;
   svmC: number;
   svmGamma: number;
+  svmEpsilon?: number;
   treeDepth: number;
   forestTrees: number;
   boostingRounds: number;
   learningRate: number;
+  pcaComponents?: number;
+  plsComponents?: number;
   decisionThreshold: number;
 }
 
@@ -131,6 +147,13 @@ interface ModelState {
   setHeroLayoutMode: (mode: HeroLayoutMode) => void;
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
+  onboardingState: OnboardingState;
+  setOnboardingState: (state: OnboardingState) => void;
+  missionTier: MissionTier;
+  setMissionTier: (tier: MissionTier) => void;
+  randomDataRecipe: RandomDataRecipe;
+  setRandomDataRecipe: (recipe: Partial<RandomDataRecipe>) => void;
+  generateRandomDatasetFromRecipe: () => void;
   
   // UI State
   showAssumptions: boolean;
@@ -141,6 +164,9 @@ interface ModelState {
   setShowOlsSolution: (show: boolean) => void;
   compareWithOls: boolean;
   setCompareWithOls: (show: boolean) => void;
+  comparePinnedModels: ModelType[];
+  togglePinnedModel: (model: ModelType) => void;
+  clearPinnedModels: () => void;
   sampleSize: number;
   setSampleSize: (size: number) => void;
   randomSeed: number;
@@ -165,7 +191,7 @@ export const useModelStore = create<ModelState>((set, get) => ({
     evaluationMode: mode === 'classification' ? 'train_test' : state.evaluationMode,
     featureMode: mode === 'classification' ? '2d' : state.featureMode,
     heroLayoutMode: 'compact',
-    viewMode: 'focus',
+    viewMode: 'deep_dive',
     selectedMetrics: mode === 'regression'
       ? ['r2', 'rmse', 'mae', 'mse']
       : ['accuracy', 'f1', 'precision', 'recall'],
@@ -179,10 +205,13 @@ export const useModelStore = create<ModelState>((set, get) => ({
       knnK: 5,
       svmC: 1,
       svmGamma: 1,
+      svmEpsilon: 0.1,
       treeDepth: 4,
       forestTrees: 35,
       boostingRounds: 40,
       learningRate: 0.1,
+      pcaComponents: 2,
+      plsComponents: 2,
     },
   })),
 
@@ -200,10 +229,13 @@ export const useModelStore = create<ModelState>((set, get) => ({
     knnK: 5,
     svmC: 1,
     svmGamma: 1,
+    svmEpsilon: 0.1,
     treeDepth: 4,
     forestTrees: 35,
     boostingRounds: 40,
     learningRate: 0.1,
+    pcaComponents: 2,
+    plsComponents: 2,
     decisionThreshold: 0.5,
   },
   setParam: (key, value) => set((state) => ({
@@ -248,8 +280,23 @@ export const useModelStore = create<ModelState>((set, get) => ({
   setSelectedMetrics: (metrics) => set({ selectedMetrics: metrics }),
   heroLayoutMode: 'compact',
   setHeroLayoutMode: (mode) => set({ heroLayoutMode: mode }),
-  viewMode: 'focus',
+  viewMode: 'deep_dive',
   setViewMode: (mode) => set({ viewMode: mode }),
+  onboardingState: 'not_started',
+  setOnboardingState: (onboardingState) => set({ onboardingState }),
+  missionTier: 'starter',
+  setMissionTier: (missionTier) => set({ missionTier }),
+  randomDataRecipe: {
+    pattern: 'linear',
+    noiseType: 'gaussian',
+    outlierLevel: 'none',
+    correlatedFeatures: true,
+  },
+  setRandomDataRecipe: (recipe) => set((state) => ({ randomDataRecipe: { ...state.randomDataRecipe, ...recipe } })),
+  generateRandomDatasetFromRecipe: () => set((state) => ({
+    dataset: 'random_recipe',
+    datasetVersion: state.datasetVersion + 1,
+  })),
   
   showAssumptions: false,
   setShowAssumptions: (show) => set({ showAssumptions: show }),
@@ -259,6 +306,18 @@ export const useModelStore = create<ModelState>((set, get) => ({
   setShowOlsSolution: (show) => set({ showOlsSolution: show }),
   compareWithOls: false,
   setCompareWithOls: (show) => set({ compareWithOls: show }),
+  comparePinnedModels: [],
+  togglePinnedModel: (model) =>
+    set((state) => {
+      if (state.comparePinnedModels.includes(model)) {
+        return { comparePinnedModels: state.comparePinnedModels.filter((entry) => entry !== model) };
+      }
+      if (state.comparePinnedModels.length >= 2) {
+        return { comparePinnedModels: [...state.comparePinnedModels.slice(1), model] };
+      }
+      return { comparePinnedModels: [...state.comparePinnedModels, model] };
+    }),
+  clearPinnedModels: () => set({ comparePinnedModels: [] }),
   sampleSize: 50,
   setSampleSize: (size) => set({ sampleSize: size }),
   randomSeed: 42,
@@ -275,10 +334,13 @@ export const useModelStore = create<ModelState>((set, get) => ({
       knnK: 5,
       svmC: 1,
       svmGamma: 1,
+      svmEpsilon: 0.1,
       treeDepth: 4,
       forestTrees: 35,
       boostingRounds: 40,
       learningRate: 0.1,
+      pcaComponents: 2,
+      plsComponents: 2,
       decisionThreshold: 0.5,
     },
   })),
