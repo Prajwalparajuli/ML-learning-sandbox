@@ -8,7 +8,7 @@ import { MetricsBoard } from '../components/MetricsBoard';
 import { InfoPopover } from '../components/InfoPopover';
 import { Toaster } from '../components/ui/sonner';
 import { toast } from 'sonner';
-import { Compass, Sparkles, PlayCircle, TestTube2, Layers2, Shuffle, PanelLeftClose, PanelLeftOpen, BookOpen, Route, Target } from 'lucide-react';
+import { Compass, Sparkles, PlayCircle, TestTube2, Layers2, Shuffle, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, BookOpen, Route, Target, RotateCcw } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { datasetExplanations, modelContentMap } from '../content/classicalContentAdapter';
 import { featureFlags } from '../config/featureFlags';
@@ -23,6 +23,7 @@ const LazyDimensionalityReductionLab = lazy(() => import('../components/Dimensio
 
 export function InteractiveModelTemplate() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
   const [focusPanel, setFocusPanel] = useState<'none' | 'lens' | 'diagnostics' | 'playbook' | 'missions'>('none');
   const [showEquation, setShowEquation] = useState(false);
   const [tourStep, setTourStep] = useState(0);
@@ -33,6 +34,7 @@ export function InteractiveModelTemplate() {
   const [renderPlaybookSection, setRenderPlaybookSection] = useState(false);
   const [renderExportSection, setRenderExportSection] = useState(false);
   const [renderDimReductionSection, setRenderDimReductionSection] = useState(false);
+  const [tourRect, setTourRect] = useState<DOMRect | null>(null);
   const {
     taskMode,
     setTaskMode,
@@ -69,6 +71,7 @@ export function InteractiveModelTemplate() {
     setShowClassificationDiagnostics,
     setShowOlsSolution,
     setCompareWithOls,
+    resetParams,
     regenerateDataset,
   } = useModelStore();
 
@@ -180,13 +183,28 @@ export function InteractiveModelTemplate() {
     return 'Good match';
   }, [taskMode, featureMode, modelType, dataset]);
   const tourSteps = [
-    'Select a dataset in Data Studio.',
-    'Choose a model family and active model.',
-    'Adjust one hyperparameter.',
-    'Validate impact using metrics.',
-    'Open diagnostics and inspect errors.',
-    'Apply one model-specific playbook action.',
-  ];
+    { selector: "[data-tour='mode-switch']", title: 'Task Mode', text: 'Switch between regression and classification workflows here.' },
+    { selector: "[data-tour='theme-toggle']", title: 'Theme & Tour', text: 'Use light/dark theme and replay this guided tour anytime.' },
+    { selector: "[data-tour='data-studio']", title: 'Data Studio', text: 'Start here: choose dataset, feature space, and sampling settings.' },
+    { selector: "[data-tour='model-studio']", title: 'Model Studio', text: 'Choose model family, model, and hyperparameters here.' },
+    { selector: "[data-tour='hero-actions']", title: 'Live Controls', text: 'Quick actions for resampling, OLS overlay, and equation view.' },
+    { selector: "[data-tour='visualization']", title: 'Visualization', text: 'Watch boundaries and fit behavior update from your changes.' },
+    { selector: "[data-tour='metrics']", title: 'Metrics', text: 'Confirm impact with objective metrics and the delta caption.' },
+    { selector: "[data-tour='lens']", title: 'Bias-Variance Lens', text: 'Inspect complexity tradeoffs and error patterns.' },
+    { selector: "[data-tour='diagnostics']", title: 'Diagnostics', text: 'Use confusion/residual diagnostics to validate model behavior.' },
+    { selector: "[data-tour='dim-lab']", title: 'Dimensionality Lab', text: 'Compare PCR/PLS and inspect PCA variance/scatter views.' },
+    { selector: "[data-tour='missions']", title: 'Learning Missions', text: 'Apply challenge presets with completion criteria.' },
+    { selector: "[data-tour='playbook']", title: 'Playbook', text: 'Use guided “try next” actions tied to your model context.' },
+    { selector: "[data-tour='export']", title: 'Python Export', text: 'Export the current sandbox configuration to Python code.' },
+  ] as const;
+
+  const findVisibleTourTarget = (selector: string): Element | null => {
+    const nodes = Array.from(document.querySelectorAll(selector));
+    return nodes.find((node) => {
+      const rect = node.getBoundingClientRect();
+      return rect.width > 8 && rect.height > 8;
+    }) ?? null;
+  };
 
   useEffect(() => {
     const seen = window.localStorage.getItem('mls_tour_seen');
@@ -195,6 +213,45 @@ export function InteractiveModelTemplate() {
       setTourStep(0);
     }
   }, [setOnboardingState]);
+
+  useEffect(() => {
+    if (onboardingState !== 'in_progress') {
+      setTourRect(null);
+      return;
+    }
+    setRenderLensSection(true);
+    setRenderDiagnosticsPanel(true);
+    setRenderDimReductionSection(true);
+    setRenderMissionsSection(true);
+    setRenderPlaybookSection(true);
+    setRenderExportSection(true);
+    const step = tourSteps[Math.max(0, Math.min(tourStep, tourSteps.length - 1))];
+    const updateRect = () => {
+      const visibleNode = findVisibleTourTarget(step.selector);
+      if (!visibleNode) {
+        setTourRect(null);
+        return;
+      }
+      setTourRect(visibleNode.getBoundingClientRect());
+    };
+    updateRect();
+    window.addEventListener('resize', updateRect);
+    window.addEventListener('scroll', updateRect, true);
+    const raf = window.requestAnimationFrame(updateRect);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener('resize', updateRect);
+      window.removeEventListener('scroll', updateRect, true);
+    };
+  }, [onboardingState, tourStep]);
+
+  useEffect(() => {
+    if (onboardingState !== 'in_progress') return;
+    const step = tourSteps[Math.max(0, Math.min(tourStep, tourSteps.length - 1))];
+    const target = findVisibleTourTarget(step.selector);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+  }, [onboardingState, tourStep]);
 
   useEffect(() => {
     if (viewMode !== 'deep_dive') return;
@@ -257,7 +314,7 @@ export function InteractiveModelTemplate() {
               </div>
             </div>
             <nav className="w-full sm:w-auto flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2">
-              <div className="theme-toggle-shell">
+              <div data-tour="mode-switch" className="theme-toggle-shell">
                 <button
                   type="button"
                   className={`theme-toggle-chip ${taskMode === 'regression' ? 'theme-toggle-chip-active' : ''}`}
@@ -283,43 +340,14 @@ export function InteractiveModelTemplate() {
               >
                 Tour
               </button>
-              <ThemeToggle />
+              <div data-tour="theme-toggle">
+                <ThemeToggle />
+              </div>
             </nav>
           </div>
           {onboardingState === 'in_progress' && (
-            <section className="mt-2 material-panel p-2.5">
-              <div className="flex items-center justify-between mb-1.5">
-                <h3 className="panel-title">Interactive Tour</h3>
-                <span className="text-[11px] text-text-tertiary">Step {tourStep + 1}/{tourSteps.length}</span>
-              </div>
-              <p className="text-sm text-text-secondary mb-2">{tourSteps[tourStep]}</p>
-              <div className="flex gap-1.5 flex-wrap">
-                <button type="button" className="quick-action" onClick={() => setTourStep((step) => Math.max(0, step - 1))}>Back</button>
-                <button
-                  type="button"
-                  className="quick-action quick-action-active"
-                  onClick={() => {
-                    if (tourStep >= tourSteps.length - 1) {
-                      setOnboardingState('completed');
-                      window.localStorage.setItem('mls_tour_seen', '1');
-                      return;
-                    }
-                    setTourStep((step) => step + 1);
-                  }}
-                >
-                  {tourStep >= tourSteps.length - 1 ? 'Finish' : 'Next'}
-                </button>
-                <button
-                  type="button"
-                  className="quick-action"
-                  onClick={() => {
-                    setOnboardingState('completed');
-                    window.localStorage.setItem('mls_tour_seen', '1');
-                  }}
-                >
-                  Skip
-                </button>
-              </div>
+            <section className="mt-2 material-panel-soft px-3 py-2 text-xs text-text-secondary">
+              Guided tour is active. Follow highlighted bubbles.
             </section>
           )}
           {showLoadGuardHint && (
@@ -335,7 +363,15 @@ export function InteractiveModelTemplate() {
 
       {/* Main Content */}
       <main className="w-full px-3 lg:pl-0 lg:pr-4 py-3">
-        <div className={`grid grid-cols-1 gap-4 lg:transition-[grid-template-columns] lg:duration-300 lg:ease-out ${sidebarCollapsed ? 'lg:grid-cols-[68px_minmax(0,1fr)_minmax(250px,18%)]' : 'lg:grid-cols-[minmax(250px,18%)_minmax(0,1fr)_minmax(250px,18%)]'}`}>
+        <div className={`grid grid-cols-1 gap-4 lg:transition-[grid-template-columns] lg:duration-300 lg:ease-out ${
+          sidebarCollapsed && rightSidebarCollapsed
+            ? 'lg:grid-cols-[64px_minmax(0,1fr)_64px]'
+            : sidebarCollapsed
+              ? 'lg:grid-cols-[64px_minmax(0,1fr)_minmax(250px,18%)]'
+              : rightSidebarCollapsed
+                ? 'lg:grid-cols-[minmax(250px,18%)_minmax(0,1fr)_64px]'
+                : 'lg:grid-cols-[minmax(250px,18%)_minmax(0,1fr)_minmax(250px,18%)]'
+        }`}>
           {/* Left Pane: Data Sidebar */}
           <aside className={`space-y-2 lg:sticky lg:top-[4.2rem] lg:h-[calc(100vh-5rem)] pr-1 lg:pr-2 lg:border-r lg:border-border-subtle/70 ${sidebarCollapsed ? 'sidebar-shell-collapsed' : ''}`}>
             {!sidebarCollapsed && (
@@ -401,12 +437,12 @@ export function InteractiveModelTemplate() {
                 )}
               </div>
             ) : (
-              <div className="hidden lg:block lg:h-[calc(100%-2rem)] lg:overflow-y-auto">
+              <div data-tour="data-studio" className="hidden lg:block lg:h-[calc(100%-2rem)] lg:overflow-y-auto">
                 <DataControlPanel />
               </div>
             )}
 
-            <div className="lg:hidden">
+            <div data-tour="data-studio" className="lg:hidden">
               <DataControlPanel />
             </div>
           </aside>
@@ -487,7 +523,7 @@ export function InteractiveModelTemplate() {
                   </p>
                 </div>
                 )}
-                <div className={`grid gap-1.5 ${taskMode === 'regression' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                <div data-tour="hero-actions" className={`grid gap-1.5 ${taskMode === 'regression' ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   <button type="button" onClick={regenerateDataset} className="quick-action">
                     <Shuffle className="w-3.5 h-3.5" />
                     <span>Resample</span>
@@ -523,7 +559,7 @@ export function InteractiveModelTemplate() {
             </section>
 
             {/* Visualizer */}
-            <section className="material-panel p-3 motion-stagger" style={{ ['--stagger-index' as any]: 1 }}>
+            <section data-tour="visualization" className="material-panel p-3 motion-stagger" style={{ ['--stagger-index' as any]: 1 }}>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="panel-title">
                   Visualization
@@ -541,7 +577,7 @@ export function InteractiveModelTemplate() {
               </p>
             </section>
 
-            <section className="material-panel p-3 motion-stagger" style={{ ['--stagger-index' as any]: 2 }}>
+            <section data-tour="metrics" className="material-panel p-3 motion-stagger" style={{ ['--stagger-index' as any]: 2 }}>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="panel-title">Metrics</h3>
                 <span className="text-xs text-text-tertiary flex items-center gap-1.5">
@@ -616,7 +652,7 @@ export function InteractiveModelTemplate() {
             )}
 
             {viewMode === 'deep_dive' && renderLensSection && (
-              <section className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
+              <section data-tour="lens" className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="panel-title">
                     Bias-Variance Lens
@@ -631,10 +667,14 @@ export function InteractiveModelTemplate() {
               </section>
             )}
 
-            {viewMode === 'deep_dive' && renderDiagnosticsPanel && renderDiagnosticsSection(true, true)}
+            {viewMode === 'deep_dive' && renderDiagnosticsPanel && (
+              <div data-tour="diagnostics">
+                {renderDiagnosticsSection(true, true)}
+              </div>
+            )}
 
             {viewMode === 'deep_dive' && renderDimReductionSection && taskMode === 'regression' && dimensionalityCompare && (
-              <section className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
+              <section data-tour="dim-lab" className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="panel-title">Dimensionality Reduction Lab</h3>
                   <span className="text-[11px] text-text-tertiary">PCR and PLS on current data split</span>
@@ -674,7 +714,7 @@ export function InteractiveModelTemplate() {
             )}
 
             {viewMode === 'deep_dive' && renderMissionsSection && featureFlags.ff_learning_missions && (
-              <section className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
+              <section data-tour="missions" className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
                 <Suspense fallback={lazyFallback}>
                   <LazyScenarioMissions />
                 </Suspense>
@@ -682,7 +722,7 @@ export function InteractiveModelTemplate() {
             )}
 
             {viewMode === 'deep_dive' && renderPlaybookSection && (
-              <section className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
+              <section data-tour="playbook" className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="panel-title">Classical ML Playbook</h3>
                   <div className="text-xs text-text-tertiary">Action-focused learning cues</div>
@@ -695,7 +735,7 @@ export function InteractiveModelTemplate() {
 
             {viewMode === 'deep_dive' && renderExportSection && (
               <div className="grid grid-cols-1 gap-3">
-                <section className="material-panel p-3 motion-stagger" style={{ ['--stagger-index' as any]: 5 }}>
+                <section data-tour="export" className="material-panel p-3 motion-stagger" style={{ ['--stagger-index' as any]: 5 }}>
                   <h3 className="panel-title mb-2">
                     Python Export
                   </h3>
@@ -708,19 +748,118 @@ export function InteractiveModelTemplate() {
           </div>
 
           {/* Right Pane: Model Sidebar */}
-          <aside className="space-y-2 lg:sticky lg:top-[4.2rem] lg:h-[calc(100vh-5rem)] pl-1">
-            <div className="hidden lg:flex items-center justify-between px-1">
-              <p className="panel-title">Model Studio</p>
-            </div>
-            <div className="hidden lg:block lg:h-[calc(100%-2rem)] lg:overflow-y-auto">
-              <ModelControlPanel />
-            </div>
-            <div className="lg:hidden">
+          <aside className={`space-y-2 lg:sticky lg:top-[4.2rem] lg:h-[calc(100vh-5rem)] pl-1 lg:pl-2 lg:border-l lg:border-border-subtle/70 ${rightSidebarCollapsed ? 'sidebar-shell-collapsed' : ''}`}>
+            {!rightSidebarCollapsed && (
+              <div className="hidden lg:flex items-center justify-between px-1">
+                <p className="panel-title">Model Studio</p>
+                <button
+                  type="button"
+                  onClick={() => setRightSidebarCollapsed((value) => !value)}
+                  className="sidebar-toggle"
+                  aria-label={rightSidebarCollapsed ? 'Expand model sidebar' : 'Collapse model sidebar'}
+                  title={rightSidebarCollapsed ? 'Expand model controls' : 'Collapse model controls'}
+                >
+                  {rightSidebarCollapsed ? <PanelRightOpen className="w-4 h-4" /> : <PanelRightClose className="w-4 h-4" />}
+                </button>
+              </div>
+            )}
+            {rightSidebarCollapsed ? (
+              <div className="sidebar-rail hidden lg:flex">
+                <button
+                  type="button"
+                  onClick={() => setRightSidebarCollapsed(false)}
+                  className="sidebar-rail-action"
+                  title="Expand model controls"
+                >
+                  <PanelRightOpen className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={resetParams}
+                  className="sidebar-rail-action"
+                  title="Reset model params"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+                {taskMode === 'regression' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowOlsSolution(!showOlsSolution)}
+                    className={`sidebar-rail-action ${showOlsSolution ? 'sidebar-rail-action-active' : ''}`}
+                    title="Toggle OLS overlay"
+                  >
+                    <Layers2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div data-tour="model-studio" className="hidden lg:block lg:h-[calc(100%-2rem)] lg:overflow-y-auto">
+                <ModelControlPanel />
+              </div>
+            )}
+            <div data-tour="model-studio" className="lg:hidden">
               <ModelControlPanel />
             </div>
           </aside>
         </div>
       </main>
+      {onboardingState === 'in_progress' && (
+        <div className="fixed inset-0 z-[100] pointer-events-none">
+          <div className="absolute inset-0 bg-black/25" />
+          {tourRect && (
+            <div
+              className="absolute rounded-xl border-2 border-accent shadow-[0_0_0_9999px_rgba(0,0,0,0.18)]"
+              style={{
+                left: Math.max(8, tourRect.left - 4),
+                top: Math.max(8, tourRect.top - 4),
+                width: Math.max(20, tourRect.width + 8),
+                height: Math.max(20, tourRect.height + 8),
+              }}
+            />
+          )}
+          <div
+            className="absolute pointer-events-auto w-[min(92vw,320px)] material-panel p-2.5"
+            style={{
+              left: tourRect ? Math.max(8, Math.min(window.innerWidth - 328, tourRect.left)) : 12,
+              top: tourRect ? Math.max(8, Math.min(window.innerHeight - 180, tourRect.bottom + 12)) : 72,
+            }}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <p className="panel-title">Guided Tour</p>
+              <span className="text-[11px] text-text-tertiary">{tourStep + 1}/{tourSteps.length}</span>
+            </div>
+            <p className="text-sm font-medium text-text-primary">{tourSteps[tourStep].title}</p>
+            <p className="text-xs text-text-secondary mt-1">{tourSteps[tourStep].text}</p>
+            <div className="flex gap-1.5 mt-2">
+              <button type="button" className="quick-action" onClick={() => setTourStep((step) => Math.max(0, step - 1))}>Back</button>
+              <button
+                type="button"
+                className="quick-action quick-action-active"
+                onClick={() => {
+                  if (tourStep >= tourSteps.length - 1) {
+                    setOnboardingState('completed');
+                    window.localStorage.setItem('mls_tour_seen', '1');
+                    return;
+                  }
+                  setTourStep((step) => step + 1);
+                }}
+              >
+                {tourStep >= tourSteps.length - 1 ? 'Finish' : 'Next'}
+              </button>
+              <button
+                type="button"
+                className="quick-action"
+                onClick={() => {
+                  setOnboardingState('completed');
+                  window.localStorage.setItem('mls_tour_seen', '1');
+                }}
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
