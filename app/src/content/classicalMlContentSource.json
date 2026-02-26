@@ -1,0 +1,366 @@
+{
+  "content_schema_version": "2026-02-25",
+  "source_snapshot_date": "2026-02-25",
+  "scope": {
+    "included": [
+      "Regression: OLS, Ridge, Lasso, ElasticNet, Polynomial, Stepwise, Best Subset, PCR, PLS, Poisson GLM",
+      "Classification: Logistic, Multinomial Logistic, LDA, QDA, Naive Bayes, KNN, SVM",
+      "Trees/Ensembles: Decision Tree, Bagging, Random Forest, AdaBoost, Gradient Boosting, XGBoost",
+      "Nonlinear/Additive: Step Functions, Regression Splines, Smoothing Splines, GAMs, LOESS",
+      "Unsupervised: K-means, Hierarchical Clustering, PCA, GMM",
+      "Resampling/Selection: Validation Set, LOOCV, K-fold, Stratified K-fold, Bootstrap, Nested CV",
+      "Diagnostics: QQ, Scale-Location, Leverage/Cook's, PR Curve, Calibration Curve, Confusion Matrix"
+    ],
+    "excluded": [
+      "Deep learning and neural-network families"
+    ]
+  },
+  "taxonomy": [
+    {
+      "family_id": "regression",
+      "methods": [
+        { "id": "ols_regression" },
+        { "id": "ridge_regression" },
+        { "id": "lasso_regression" },
+        { "id": "elastic_net" },
+        { "id": "polynomial_regression" },
+        { "id": "forward_backward_stepwise" },
+        { "id": "best_subset" },
+        { "id": "pcr" },
+        { "id": "pls" },
+        { "id": "poisson_glm" }
+      ]
+    },
+    {
+      "family_id": "classification",
+      "methods": [
+        { "id": "logistic_regression" },
+        { "id": "multinomial_logistic" },
+        { "id": "lda" },
+        { "id": "qda" },
+        { "id": "naive_bayes" },
+        { "id": "knn" },
+        { "id": "svm_classifier" }
+      ]
+    },
+    {
+      "family_id": "trees_ensembles",
+      "methods": [
+        { "id": "decision_tree" },
+        { "id": "bagging" },
+        { "id": "random_forest" },
+        { "id": "adaboost" },
+        { "id": "gradient_boosting" },
+        {
+          "id": "xgboost",
+          "name": "XGBoost (Extreme Gradient Boosting)",
+          "task_type": "both",
+          "plain_definition": "An optimized implementation of Gradient Boosting that is extremely fast, scalable, and portable. It builds trees sequentially to minimize a regularized objective function, often dominating machine learning competitions.",
+          "core_objective_or_rule_latex": [
+            "\\text{argmin}_{f_t} \\sum_{i=1}^n L(y_i, \\hat{y}_i^{(t-1)} + f_t(x_i)) + \\Omega(f_t)"
+          ],
+          "key_assumptions": [
+            "Residuals of previous trees can be corrected iteratively.",
+            "Appropriate regularization (shrinkage) controls tree variance."
+          ],
+          "hyperparameters": [
+            {
+              "name": "learning_rate",
+              "role": "Scales the contribution of each tree.",
+              "increase_effect": "Faster learning, highly prone to overfitting.",
+              "decrease_effect": "Requires more estimators but generally generalizes better.",
+              "typical_range_hint": "0.01 to 0.2"
+            },
+            {
+              "name": "early_stopping_rounds",
+              "role": "Automatically stops adding trees when validation error stops improving.",
+              "increase_effect": "More patience, larger ensembles.",
+              "decrease_effect": "Halts earlier, reducing overfitting risk.",
+              "typical_range_hint": "5 to 50"
+            }
+          ],
+          "what_to_visualize": [
+            {
+              "chart": "Validation Error vs Iterations",
+              "what_user_should_look_for": "The iteration where validation error stops decreasing, indicating the optimal number of trees."
+            }
+          ],
+          "strengths": [
+            "Extremely fast and scalable.",
+            "Offers features like automatic handling of early stopping."
+          ],
+          "limitations": [
+            "Considered a black-box model, making predictions harder to explain natively."
+          ],
+          "failure_modes": [
+            "Overfitting if the learning rate is too high or early stopping is ignored."
+          ],
+          "when_to_use": [
+            "When extracting maximum predictive performance from tabular data.",
+            "In competitive ML environments (e.g., Kaggle)."
+          ],
+          "when_not_to_use": [
+            "When strict model transparency and simple rules are mandated."
+          ],
+          "common_baselines_to_compare": [
+            "Random Forest",
+            "Standard Gradient Boosting"
+          ],
+          "ui_ready": {
+            "short": "Extremely fast and optimized gradient boosting.",
+            "long": "XGBoost is a highly optimized version of Gradient Boosting. It trains significantly faster, handles early stopping automatically, and is a frequent winner in machine learning competitions.",
+            "do": [
+              "Use it as a primary model for extracting peak accuracy from tabular datasets.",
+              "Use early stopping."
+            ],
+            "avoid": [
+              "Manually guessing parameters without rigorous cross-validation."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "family_id": "nonlinear_additive",
+      "methods": [
+        { "id": "step_functions" },
+        { "id": "regression_splines" },
+        { "id": "smoothing_splines" },
+        { "id": "loess" },
+        { "id": "gams" }
+      ]
+    },
+    {
+      "family_id": "unsupervised",
+      "methods": [
+        { "id": "pca" },
+        { "id": "kmeans" },
+        { "id": "hierarchical_clustering" },
+        { "id": "gmm" }
+      ]
+    },
+    {
+      "family_id": "resampling_selection",
+      "methods": [
+        { "id": "validation_set_approach" },
+        { "id": "loocv" },
+        { "id": "kfold_cv" },
+        { "id": "bootstrap" },
+        { "id": "stratified_kfold" },
+        { "id": "nested_cv" }
+      ]
+    },
+    {
+      "family_id": "diagnostics_pitfalls",
+      "methods": [
+        { "id": "qq_plot" },
+        { "id": "scale_location_plot" },
+        { "id": "leverage_cooks_distance" },
+        {
+          "id": "precision_recall_curve",
+          "core_objective_or_rule_latex": [
+            "\\text{Plot Precision}(\\tau) \\text{ vs Recall}(\\tau) \\text{ for } \\tau \\in [0,1]"
+          ]
+        },
+        { "id": "calibration_curve" },
+        { "id": "confusion_matrix" }
+      ]
+    }
+  ],
+  "metrics": {
+    "supported_metric_ids": [
+      "rmse",
+      "r2",
+      "adjusted_r2",
+      "mse",
+      "mae",
+      "explained_variance",
+      "accuracy",
+      "precision",
+      "recall",
+      "specificity",
+      "f1_score",
+      "roc_auc",
+      "pr_auc",
+      "log_loss",
+      "confusion_matrix_metric"
+    ],
+    "entries": [
+      {
+        "metric_id": "pr_auc",
+        "name": "Area Under the Precision-Recall Curve (PR-AUC / mAP)",
+        "applies_to": "classification",
+        "formula_latex": "\\int_{0}^{1} \\text{Precision}(r) \\, dr",
+        "range_or_units": "0 to 1",
+        "better_direction": "higher",
+        "outlier_sensitivity": "na",
+        "class_imbalance_sensitivity": "low",
+        "interpretation": "Summarizes the Precision-Recall curve into a single number. It represents the probability that the classifier can identify positive instances without making false positive errors across all recall thresholds.",
+        "pitfalls": [
+          "Can be noisy or zig-zag because precision can occasionally drop as the threshold is lowered and false positives jump."
+        ],
+        "best_use_cases": [
+          "Evaluating binary classifiers on highly imbalanced datasets where the positive class is rare."
+        ],
+        "ui_ready": {
+          "short": "A single score summarizing the tradeoff between precision and recall.",
+          "long": "PR-AUC calculates the total area under the Precision/Recall curve. It is much more informative than standard ROC-AUC for datasets where the target class is extremely rare, acting as a strict measure of false-alarm resistance.",
+          "do": [
+            "Use it instead of ROC-AUC for heavily imbalanced data (e.g., fraud detection)."
+          ],
+          "avoid": [
+            "Assuming a high ROC-AUC on imbalanced data means your PR-AUC is also high."
+          ]
+        }
+      }
+    ],
+    "deferred_metric_ids": [
+      "brier_score",
+      "balanced_accuracy"
+    ]
+  },
+  "unsupported_or_deferred": [
+    {
+      "id": "balanced_accuracy",
+      "reason": "Source-verified online, but not implemented in the current regression-first runtime metric engine."
+    },
+    {
+      "id": "brier_score",
+      "reason": "Source-verified online, but not implemented in the current regression-first runtime metric engine."
+    },
+    {
+      "id": "lightgbm",
+      "reason": "Algorithmically source-verified online, but model family is not yet implemented in this sandbox."
+    },
+    {
+      "id": "catboost",
+      "reason": "Algorithmically source-verified online, but model family is not yet implemented in this sandbox."
+    }
+  ],
+  "citations": [
+    {
+      "topic": "Validation Set and LOOCV",
+      "source_title": "ISLP",
+      "chapter_or_section": "Chapter 5",
+      "page_number_or_range": "202-205"
+    },
+    {
+      "topic": "K-fold CV",
+      "source_title": "ISLP",
+      "chapter_or_section": "Chapter 5",
+      "page_number_or_range": "206-209"
+    },
+    {
+      "topic": "Bootstrap",
+      "source_title": "ISLP",
+      "chapter_or_section": "Chapter 5",
+      "page_number_or_range": "212-214"
+    },
+    {
+      "topic": "Polynomial boundary behavior",
+      "source_title": "ISLP",
+      "chapter_or_section": "Chapter 7",
+      "page_number_or_range": "290"
+    },
+    {
+      "topic": "XGBoost mention",
+      "source_title": "Hands_On_ML_Geron.pdf",
+      "chapter_or_section": "Chapter 7: Ensemble Learning and Random Forests",
+      "page_number_or_range": "209"
+    },
+    {
+      "topic": "Nested CV pattern",
+      "source_title": "ISLP",
+      "chapter_or_section": "Chapter 6",
+      "page_number_or_range": "278-279"
+    },
+    {
+      "topic": "Precision-Recall Area Under the Curve (PR-AUC)",
+      "source_title": "understanding-machine-learning-theory-algorithms.pdf",
+      "chapter_or_section": "Chapter 17: Multiclass, Ranking, and Complex Prediction Problems",
+      "page_number_or_range": "239-240",
+      "evidence_note": "Defines Average Precision (AveP) and Mean Average Precision (MAP), combining both precision and recall without deep-learning context."
+    },
+    {
+      "topic": "Confusion Matrix",
+      "source_title": "Hands_On_ML_Geron.pdf",
+      "chapter_or_section": "Chapter 3: Classification",
+      "page_number_or_range": "92",
+      "evidence_note": "Defines confusion-matrix construction from true/false positives and negatives."
+    },
+    {
+      "topic": "Precision-Recall Curve",
+      "source_title": "Hands_On_ML_Geron.pdf",
+      "chapter_or_section": "Chapter 3: Classification",
+      "page_number_or_range": "95-99",
+      "evidence_note": "Covers plotting precision and recall as threshold varies to analyze tradeoffs."
+    },
+    {
+      "topic": "MAPE",
+      "source_title": "scikit-learn docs",
+      "chapter_or_section": "mean_absolute_percentage_error API",
+      "page_number_or_range": "online",
+      "evidence_note": "Defines MAPE and usage; includes behavior near zero target values."
+    },
+    {
+      "topic": "Median Absolute Error",
+      "source_title": "scikit-learn docs",
+      "chapter_or_section": "median_absolute_error API",
+      "page_number_or_range": "online",
+      "evidence_note": "Defines median absolute error as median(|y_true - y_pred|)."
+    },
+    {
+      "topic": "Balanced Accuracy",
+      "source_title": "scikit-learn docs",
+      "chapter_or_section": "balanced_accuracy_score API",
+      "page_number_or_range": "online",
+      "evidence_note": "Defines balanced accuracy as average recall per class."
+    },
+    {
+      "topic": "Brier Score",
+      "source_title": "scikit-learn docs",
+      "chapter_or_section": "brier_score_loss API",
+      "page_number_or_range": "online",
+      "evidence_note": "Defines Brier score as mean squared error of probabilistic predictions."
+    },
+    {
+      "topic": "Calibration Curve",
+      "source_title": "scikit-learn docs",
+      "chapter_or_section": "calibration_curve API",
+      "page_number_or_range": "online",
+      "evidence_note": "Defines reliability-curve binning of predicted probabilities versus observed positives."
+    },
+    {
+      "topic": "Q-Q / Scale-Location Diagnostics",
+      "source_title": "R stats manual",
+      "chapter_or_section": "plot.lm",
+      "page_number_or_range": "online",
+      "evidence_note": "Documents standard regression diagnostic views including Normal Q-Q and Scale-Location."
+    },
+    {
+      "topic": "Leverage and Cook's Distance",
+      "source_title": "statsmodels docs",
+      "chapter_or_section": "OLSInfluence",
+      "page_number_or_range": "online",
+      "evidence_note": "Exposes leverage and Cook's distance influence diagnostics for OLS."
+    },
+    {
+      "topic": "LightGBM algorithm notes",
+      "source_title": "LightGBM docs",
+      "chapter_or_section": "Features",
+      "page_number_or_range": "online",
+      "evidence_note": "Describes leaf-wise growth, histogram optimization, and overfitting controls."
+    },
+    {
+      "topic": "CatBoost algorithm notes",
+      "source_title": "CatBoost docs",
+      "chapter_or_section": "Main features",
+      "page_number_or_range": "online",
+      "evidence_note": "Describes ordered boosting and categorical-feature handling."
+    }
+  ],
+  "known_remaining_gaps": [
+    "Per-item exact page anchors still needed for all newly added method/metric entries if strict citation policy is required.",
+    "No active needs-source-check blockers; remaining deferred items are implementation-scope decisions."
+  ]
+}
