@@ -1,0 +1,12 @@
+{
+  "format": "sandbox-boundary-model",
+  "kind": "boundary_deep",
+  "version": 1,
+  "coefficients": {
+    "r_center": 0.58,
+    "r_scale": 12.5,
+    "swirl": 1.35,
+    "x_shift": 0.06,
+    "y_shift": -0.04
+  }
+}

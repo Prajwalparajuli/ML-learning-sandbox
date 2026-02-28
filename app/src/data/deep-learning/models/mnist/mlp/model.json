@@ -1,0 +1,10 @@
+{
+  "format": "sandbox-json-model",
+  "kind": "mnist_mlp",
+  "input_size": 784,
+  "hidden_size": 384,
+  "output_size": 10,
+  "activation": "relu",
+  "weights_file": "weights-shard1.json",
+  "version": 4
+}

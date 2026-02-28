@@ -1,0 +1,70 @@
+{
+  "stages": [
+    {
+      "id": "input",
+      "label": "Input",
+      "story_label": "See",
+      "summary": "Convert image pixels to normalized grayscale values.",
+      "stage_math_summary": "x_norm = x / 255",
+      "stage_visual_payload": { "type": "image", "note": "Heatmap represents grayscale intensity." },
+      "predict_prompt": "Will edge filters change this stage directly?",
+      "reveal_text": "No. Input stage is unchanged by filter choice.",
+      "misconception": "CNNs do not process the whole image in one multiply."
+    },
+    {
+      "id": "conv",
+      "label": "Conv",
+      "story_label": "Detect",
+      "summary": "Slide a 3x3 kernel to score local edge patterns.",
+      "stage_math_summary": "y(i,j) = sum(sum(K * patch(i,j)))",
+      "stage_visual_payload": { "type": "matrix", "note": "Highlighted patch produces one output cell." },
+      "predict_prompt": "Will orientation swap change active hotspots?",
+      "reveal_text": "Yes. Horizontal and vertical kernels emphasize different edges.",
+      "misconception": "Kernel values are learned detectors, not random constants."
+    },
+    {
+      "id": "relu",
+      "label": "ReLU",
+      "story_label": "Gate",
+      "summary": "Zero-out negatives to retain positive evidence.",
+      "stage_math_summary": "a = max(0, y)",
+      "stage_visual_payload": { "type": "matrix", "note": "Negative cells collapse to zero intensity." },
+      "predict_prompt": "Will all conv details survive ReLU?",
+      "reveal_text": "No. Negative responses are discarded.",
+      "misconception": "ReLU is not a smoothing operation."
+    },
+    {
+      "id": "pool",
+      "label": "Pool",
+      "story_label": "Compress",
+      "summary": "Take local maxima in 2x2 windows to reduce map size.",
+      "stage_math_summary": "p(i,j) = max(a[2i:2i+2, 2j:2j+2])",
+      "stage_visual_payload": { "type": "matrix", "note": "Output is smaller but keeps strongest local cues." },
+      "predict_prompt": "Will pooled map preserve exact positions?",
+      "reveal_text": "Not exactly. Pooling trades position precision for compactness.",
+      "misconception": "Pooling keeps salience, not full spatial detail."
+    },
+    {
+      "id": "flatten",
+      "label": "Flatten",
+      "story_label": "Summarize",
+      "summary": "Reshape pooled map to a feature vector for dense scoring.",
+      "stage_math_summary": "v = reshape(p, 1 x n)",
+      "stage_visual_payload": { "type": "vector", "note": "Vector order comes from deterministic scan." },
+      "predict_prompt": "Does flattening add new features?",
+      "reveal_text": "No. It only reorganizes existing activations.",
+      "misconception": "Flattening changes shape, not representation quality."
+    },
+    {
+      "id": "dense",
+      "label": "Dense",
+      "story_label": "Decide",
+      "summary": "Combine flattened features into class logits and softmax.",
+      "stage_math_summary": "logits = Wv + b; prob = softmax(logits)",
+      "stage_visual_payload": { "type": "bars", "note": "Bars represent normalized confidence by class." },
+      "predict_prompt": "Can high confidence still be wrong?",
+      "reveal_text": "Yes. Confidence is an estimate, not proof.",
+      "misconception": "Probabilities reflect certainty estimate, not guaranteed correctness."
+    }
+  ]
+}

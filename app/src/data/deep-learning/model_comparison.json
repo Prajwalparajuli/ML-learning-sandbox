@@ -1,0 +1,34 @@
+[
+  {
+    "id": "mlp_small",
+    "label": "MLP Small",
+    "params_millions": 0.12,
+    "top1_accuracy": 0.78,
+    "latency_ms": 5.6,
+    "note": "Fast baseline for tabular-like feature vectors."
+  },
+  {
+    "id": "cnn_shallow",
+    "label": "CNN Shallow",
+    "params_millions": 0.85,
+    "top1_accuracy": 0.84,
+    "latency_ms": 8.9,
+    "note": "Good visual baseline with low compute."
+  },
+  {
+    "id": "cnn_deeper",
+    "label": "CNN Deeper",
+    "params_millions": 2.4,
+    "top1_accuracy": 0.88,
+    "latency_ms": 14.2,
+    "note": "Improves accuracy but higher inference cost."
+  },
+  {
+    "id": "transfer_mobilenet",
+    "label": "Transfer MobileNet",
+    "params_millions": 3.5,
+    "top1_accuracy": 0.91,
+    "latency_ms": 11.7,
+    "note": "Best tradeoff using pretrained features."
+  }
+]

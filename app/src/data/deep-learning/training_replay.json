@@ -1,0 +1,23 @@
+[
+  { "epoch": 1, "training_loss": 1.38, "validation_loss": 1.44, "training_accuracy": 0.51, "validation_accuracy": 0.49, "cat_confidence": 0.52, "dog_confidence": 0.48 },
+  { "epoch": 2, "training_loss": 1.31, "validation_loss": 1.39, "training_accuracy": 0.55, "validation_accuracy": 0.52, "cat_confidence": 0.54, "dog_confidence": 0.46 },
+  { "epoch": 3, "training_loss": 1.23, "validation_loss": 1.32, "training_accuracy": 0.58, "validation_accuracy": 0.56, "cat_confidence": 0.57, "dog_confidence": 0.43 },
+  { "epoch": 4, "training_loss": 1.14, "validation_loss": 1.24, "training_accuracy": 0.62, "validation_accuracy": 0.59, "cat_confidence": 0.60, "dog_confidence": 0.40 },
+  { "epoch": 5, "training_loss": 1.06, "validation_loss": 1.18, "training_accuracy": 0.65, "validation_accuracy": 0.62, "cat_confidence": 0.63, "dog_confidence": 0.37 },
+  { "epoch": 6, "training_loss": 0.98, "validation_loss": 1.11, "training_accuracy": 0.69, "validation_accuracy": 0.66, "cat_confidence": 0.66, "dog_confidence": 0.34 },
+  { "epoch": 7, "training_loss": 0.91, "validation_loss": 1.05, "training_accuracy": 0.72, "validation_accuracy": 0.69, "cat_confidence": 0.69, "dog_confidence": 0.31 },
+  { "epoch": 8, "training_loss": 0.84, "validation_loss": 0.99, "training_accuracy": 0.75, "validation_accuracy": 0.71, "cat_confidence": 0.71, "dog_confidence": 0.29 },
+  { "epoch": 9, "training_loss": 0.79, "validation_loss": 0.95, "training_accuracy": 0.77, "validation_accuracy": 0.73, "cat_confidence": 0.73, "dog_confidence": 0.27 },
+  { "epoch": 10, "training_loss": 0.74, "validation_loss": 0.92, "training_accuracy": 0.79, "validation_accuracy": 0.74, "cat_confidence": 0.74, "dog_confidence": 0.26 },
+  { "epoch": 12, "training_loss": 0.66, "validation_loss": 0.86, "training_accuracy": 0.82, "validation_accuracy": 0.77, "cat_confidence": 0.78, "dog_confidence": 0.22 },
+  { "epoch": 14, "training_loss": 0.59, "validation_loss": 0.81, "training_accuracy": 0.84, "validation_accuracy": 0.79, "cat_confidence": 0.81, "dog_confidence": 0.19 },
+  { "epoch": 16, "training_loss": 0.54, "validation_loss": 0.77, "training_accuracy": 0.86, "validation_accuracy": 0.81, "cat_confidence": 0.83, "dog_confidence": 0.17 },
+  { "epoch": 18, "training_loss": 0.49, "validation_loss": 0.74, "training_accuracy": 0.88, "validation_accuracy": 0.82, "cat_confidence": 0.85, "dog_confidence": 0.15 },
+  { "epoch": 20, "training_loss": 0.45, "validation_loss": 0.72, "training_accuracy": 0.89, "validation_accuracy": 0.83, "cat_confidence": 0.86, "dog_confidence": 0.14 },
+  { "epoch": 24, "training_loss": 0.39, "validation_loss": 0.69, "training_accuracy": 0.91, "validation_accuracy": 0.84, "cat_confidence": 0.88, "dog_confidence": 0.12 },
+  { "epoch": 28, "training_loss": 0.34, "validation_loss": 0.67, "training_accuracy": 0.92, "validation_accuracy": 0.85, "cat_confidence": 0.90, "dog_confidence": 0.10 },
+  { "epoch": 32, "training_loss": 0.30, "validation_loss": 0.66, "training_accuracy": 0.93, "validation_accuracy": 0.85, "cat_confidence": 0.91, "dog_confidence": 0.09 },
+  { "epoch": 38, "training_loss": 0.25, "validation_loss": 0.66, "training_accuracy": 0.95, "validation_accuracy": 0.85, "cat_confidence": 0.92, "dog_confidence": 0.08 },
+  { "epoch": 44, "training_loss": 0.21, "validation_loss": 0.68, "training_accuracy": 0.96, "validation_accuracy": 0.84, "cat_confidence": 0.93, "dog_confidence": 0.07 },
+  { "epoch": 50, "training_loss": 0.18, "validation_loss": 0.70, "training_accuracy": 0.97, "validation_accuracy": 0.83, "cat_confidence": 0.94, "dog_confidence": 0.06 }
+]

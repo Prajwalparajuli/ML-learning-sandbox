@@ -1,0 +1,96 @@
+{
+  "mlp": [
+    {
+      "step_id": "hidden_1",
+      "what_changed": "Input features are weighted and combined into first-layer signals.",
+      "why": "Weighted mixing helps the model detect useful feature interactions.",
+      "try_next": "Advance one step and compare activation movement.",
+      "misconception": "A hidden neuron is not a human-readable feature label.",
+      "predict_prompt": "Will changing activation from ReLU to Sigmoid compress this node output?",
+      "reveal_text": "Sigmoid compresses values into 0-1, so high z values move less dramatically."
+    },
+    {
+      "step_id": "hidden_2",
+      "what_changed": "Second hidden layer remixes prior activations into richer abstractions.",
+      "why": "Depth captures combinations that a shallow transform can miss.",
+      "try_next": "Increase neurons per layer and watch confidence margin shift.",
+      "misconception": "Deeper does not always mean better confidence for every sample.",
+      "predict_prompt": "Will adding neurons always increase confidence?",
+      "reveal_text": "Not always; confidence depends on feature alignment and current weights."
+    },
+    {
+      "step_id": "hidden_3",
+      "what_changed": "A deeper hidden pass sharpens the final representation before output.",
+      "why": "Extra transformation can separate decision boundaries for hard cases.",
+      "try_next": "Switch to output and compare confidence gap.",
+      "misconception": "More layers do not guarantee better generalization.",
+      "predict_prompt": "Will one more hidden transformation always boost the winner class?",
+      "reveal_text": "No. It can also reduce a class score when evidence weakens."
+    },
+    {
+      "step_id": "output",
+      "what_changed": "Dense logits are converted into softmax probabilities.",
+      "why": "Softmax normalizes class scores into a comparable confidence scale.",
+      "try_next": "Reset and replay with another activation choice.",
+      "misconception": "High confidence is still an estimate, not certainty.",
+      "predict_prompt": "If the confidence gap is small, should we trust this result less?",
+      "reveal_text": "Usually yes: small gaps indicate weaker separation between class scores."
+    }
+  ],
+  "cnn": [
+    {
+      "step_id": "input",
+      "what_changed": "The image became a normalized grayscale matrix.",
+      "why": "Convolution acts on numeric patches, not raw image semantics.",
+      "try_next": "Move to Conv and inspect one highlighted patch.",
+      "misconception": "The model does not inspect the whole image in one operation.",
+      "predict_prompt": "Will a horizontal filter respond strongly on vertical edges?",
+      "reveal_text": "No. Horizontal kernels mainly amplify horizontal transitions."
+    },
+    {
+      "step_id": "conv",
+      "what_changed": "A local 3x3 patch produced one feature-map value.",
+      "why": "Patch-wise scoring detects reusable patterns across positions.",
+      "try_next": "Toggle filter direction and compare the map response.",
+      "misconception": "Kernel values are learned detectors, not arbitrary constants.",
+      "predict_prompt": "Will changing filter orientation move highlighted activations?",
+      "reveal_text": "Yes. Orientation changes which edge patterns score high."
+    },
+    {
+      "step_id": "relu",
+      "what_changed": "Negative convolution responses were set to zero.",
+      "why": "ReLU keeps strong positive evidence and adds non-linearity.",
+      "try_next": "Advance to pool and compare map size.",
+      "misconception": "ReLU is not smoothing; it is thresholded gating.",
+      "predict_prompt": "Does ReLU preserve all information from conv output?",
+      "reveal_text": "No. Negative evidence is removed by design."
+    },
+    {
+      "step_id": "pool",
+      "what_changed": "2x2 windows collapsed to their max activation.",
+      "why": "Pooling keeps strongest local cues while reducing spatial size.",
+      "try_next": "Go to Flatten and inspect vectorized features.",
+      "misconception": "Pooling lowers resolution but keeps salient signals.",
+      "predict_prompt": "Will pooling keep exact pixel positions?",
+      "reveal_text": "No. It trades position precision for compact robustness."
+    },
+    {
+      "step_id": "flatten",
+      "what_changed": "2D pooled maps were unrolled into a 1D feature vector.",
+      "why": "Dense layers consume vectors, so maps must be reshaped.",
+      "try_next": "Move to Dense to see class probabilities.",
+      "misconception": "Flattening reorganizes features; it does not learn new ones.",
+      "predict_prompt": "Does flattening itself improve accuracy?",
+      "reveal_text": "No. It is a structural conversion step."
+    },
+    {
+      "step_id": "dense",
+      "what_changed": "Flattened features were scored into cat/dog probabilities.",
+      "why": "Dense weights aggregate feature evidence into class decisions.",
+      "try_next": "Reset with another sample and compare confidence.",
+      "misconception": "Confidence reflects estimated certainty, not guaranteed truth.",
+      "predict_prompt": "If confidence is high, is the prediction always correct?",
+      "reveal_text": "No. Confidence can still be wrong on ambiguous or shifted inputs."
+    }
+  ]
+}

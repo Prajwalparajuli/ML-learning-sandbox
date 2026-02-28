@@ -12,6 +12,7 @@ import { Compass, Sparkles, PlayCircle, TestTube2, Layers2, Shuffle, PanelLeftCl
 import { ThemeToggle } from '../components/ThemeToggle';
 import { datasetExplanations, modelContentMap } from '../content/classicalContentAdapter';
 import { featureFlags } from '../config/featureFlags';
+import { DeepLearningPanel } from '../components/deep-learning/DeepLearningPanel';
 
 const LazyCodeExporter = lazy(() => import('../components/CodeExporter').then((m) => ({ default: m.CodeExporter })));
 const LazyAssumptionChecker = lazy(() => import('../components/AssumptionChecker/AssumptionChecker').then((m) => ({ default: m.AssumptionChecker })));
@@ -77,6 +78,7 @@ export function InteractiveModelTemplate() {
 
   // Generate data when dataset changes
   useEffect(() => {
+    if (taskMode === 'deep_learning') return;
     try {
       const newData = generateDataset(dataset, sampleSize, randomSeed + datasetVersion, featureMode, randomDataRecipe);
       setData(newData);
@@ -84,10 +86,11 @@ export function InteractiveModelTemplate() {
     } catch {
       setError('Failed to generate dataset. Please try again.');
     }
-  }, [dataset, sampleSize, randomSeed, datasetVersion, featureMode, randomDataRecipe, setData, setError]);
+  }, [taskMode, dataset, sampleSize, randomSeed, datasetVersion, featureMode, randomDataRecipe, setData, setError]);
 
   // Compute metrics when parameters or data change
   useEffect(() => {
+    if (taskMode === 'deep_learning') return;
     if (data.length === 0) return;
 
     const timeout = window.setTimeout(() => {
@@ -108,7 +111,7 @@ export function InteractiveModelTemplate() {
       }
     }, 90);
     return () => window.clearTimeout(timeout);
-  }, [params, data, modelType, evaluationMode, testRatio, cvFolds, randomSeed, datasetVersion, setMetrics, setError]);
+  }, [taskMode, params, data, modelType, evaluationMode, testRatio, cvFolds, randomSeed, datasetVersion, setMetrics, setError]);
 
   // Show error toast when error changes
   useEffect(() => {
@@ -123,6 +126,10 @@ export function InteractiveModelTemplate() {
 
   useEffect(() => {
     const handleGuard = () => {
+      if (taskMode === 'deep_learning') {
+        setShowLoadGuardHint(false);
+        return;
+      }
       const isSmall = window.innerWidth < 1200;
       if (!isSmall) {
         setShowLoadGuardHint(false);
@@ -140,6 +147,7 @@ export function InteractiveModelTemplate() {
     window.addEventListener('resize', handleGuard);
     return () => window.removeEventListener('resize', handleGuard);
   }, [
+    taskMode,
     viewMode,
     showEquation,
     showAssumptions,
@@ -149,8 +157,8 @@ export function InteractiveModelTemplate() {
   ]);
 
   const fittedForFormula = useMemo(
-    () => (data.length > 0 ? fitRegressionModel(data, modelType, params) : null),
-    [data, modelType, params]
+    () => (taskMode !== 'deep_learning' && data.length > 0 ? fitRegressionModel(data, modelType, params) : null),
+    [taskMode, data, modelType, params]
   );
   const currentFormula = latexForModel(modelType, params, fittedForFormula);
   const dimensionalityCompare = useMemo(() => {
@@ -271,6 +279,7 @@ export function InteractiveModelTemplate() {
   }, [viewMode]);
 
   const lazyFallback = <div className="rounded-xl border border-border-subtle p-2.5 text-xs text-text-tertiary">Loading panel...</div>;
+  const isDeepLearning = taskMode === 'deep_learning';
 
   const renderDiagnosticsSection = (compact = false, forceVisible = false) => {
     if (taskMode === 'regression' && (showAssumptions || forceVisible)) {
@@ -329,10 +338,18 @@ export function InteractiveModelTemplate() {
                 >
                   Classification
                 </button>
+                <button
+                  type="button"
+                  className={`theme-toggle-chip ${taskMode === 'deep_learning' ? 'theme-toggle-chip-active' : ''}`}
+                  onClick={() => setTaskMode('deep_learning')}
+                >
+                  Deep Learning
+                </button>
               </div>
               <button
                 type="button"
                 className="theme-toggle-chip"
+                disabled={isDeepLearning}
                 onClick={() => {
                   setOnboardingState('in_progress');
                   setTourStep(0);
@@ -363,6 +380,9 @@ export function InteractiveModelTemplate() {
 
       {/* Main Content */}
       <main className="w-full px-3 lg:pl-0 lg:pr-4 py-3">
+        {isDeepLearning ? (
+          <DeepLearningPanel />
+        ) : (
         <div className={`grid grid-cols-1 gap-4 lg:transition-[grid-template-columns] lg:duration-300 lg:ease-out ${
           sidebarCollapsed && rightSidebarCollapsed
             ? 'lg:grid-cols-[64px_minmax(0,1fr)_64px]'
@@ -802,8 +822,9 @@ export function InteractiveModelTemplate() {
             </div>
           </aside>
         </div>
+        )}
       </main>
-      {onboardingState === 'in_progress' && (
+      {!isDeepLearning && onboardingState === 'in_progress' && (
         <div className="fixed inset-0 z-[100] pointer-events-none">
           <div className="absolute inset-0 bg-black/25" />
           {tourRect && (

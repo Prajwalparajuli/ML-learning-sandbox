@@ -31,7 +31,7 @@ export type DatasetType =
   | 'class_moons'
   | 'class_imbalanced'
   | 'random_recipe';
-export type TaskMode = 'regression' | 'classification';
+export type TaskMode = 'regression' | 'classification' | 'deep_learning';
 export type OnboardingState = 'not_started' | 'in_progress' | 'completed';
 export type MissionTier = 'starter' | 'analyst' | 'expert';
 
@@ -184,36 +184,42 @@ interface ModelState {
 
 export const useModelStore = create<ModelState>((set, get) => ({
   taskMode: 'regression',
-  setTaskMode: (mode) => set((state) => ({
-    taskMode: mode,
-    modelType: mode === 'regression' ? 'ols' : 'logistic_classifier',
-    dataset: mode === 'regression' ? 'linear' : 'class_moons',
-    evaluationMode: mode === 'classification' ? 'train_test' : state.evaluationMode,
-    featureMode: mode === 'classification' ? '2d' : state.featureMode,
-    heroLayoutMode: 'compact',
-    viewMode: 'deep_dive',
-    selectedMetrics: mode === 'regression'
-      ? ['r2', 'rmse', 'mae', 'mse']
-      : ['accuracy', 'f1', 'precision', 'recall'],
-    showAssumptions: mode === 'classification' ? false : state.showAssumptions,
-    showClassificationDiagnostics: mode === 'classification' ? true : state.showClassificationDiagnostics,
-    showOlsSolution: mode === 'classification' ? false : state.showOlsSolution,
-    compareWithOls: mode === 'classification' ? false : state.compareWithOls,
-    params: {
-      ...state.params,
-      decisionThreshold: 0.5,
-      knnK: 5,
-      svmC: 1,
-      svmGamma: 1,
-      svmEpsilon: 0.1,
-      treeDepth: 4,
-      forestTrees: 35,
-      boostingRounds: 40,
-      learningRate: 0.1,
-      pcaComponents: 2,
-      plsComponents: 2,
-    },
-  })),
+  setTaskMode: (mode) => set((state) => {
+    if (mode === 'deep_learning') {
+      return { taskMode: mode };
+    }
+
+    return {
+      taskMode: mode,
+      modelType: mode === 'regression' ? 'ols' : 'logistic_classifier',
+      dataset: mode === 'regression' ? 'linear' : 'class_moons',
+      evaluationMode: mode === 'classification' ? 'train_test' : state.evaluationMode,
+      featureMode: mode === 'classification' ? '2d' : state.featureMode,
+      heroLayoutMode: 'compact',
+      viewMode: 'deep_dive',
+      selectedMetrics: mode === 'regression'
+        ? ['r2', 'rmse', 'mae', 'mse']
+        : ['accuracy', 'f1', 'precision', 'recall'],
+      showAssumptions: mode === 'classification' ? false : state.showAssumptions,
+      showClassificationDiagnostics: mode === 'classification' ? true : state.showClassificationDiagnostics,
+      showOlsSolution: mode === 'classification' ? false : state.showOlsSolution,
+      compareWithOls: mode === 'classification' ? false : state.compareWithOls,
+      params: {
+        ...state.params,
+        decisionThreshold: 0.5,
+        knnK: 5,
+        svmC: 1,
+        svmGamma: 1,
+        svmEpsilon: 0.1,
+        treeDepth: 4,
+        forestTrees: 35,
+        boostingRounds: 40,
+        learningRate: 0.1,
+        pcaComponents: 2,
+        plsComponents: 2,
+      },
+    };
+  }),
 
   modelType: 'ols',
   setModelType: (type) => set({ modelType: type }),

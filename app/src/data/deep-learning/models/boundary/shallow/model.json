@@ -1,0 +1,11 @@
+{
+  "format": "sandbox-boundary-model",
+  "kind": "boundary_shallow",
+  "version": 1,
+  "coefficients": {
+    "wx": 2.1,
+    "wy": -1.8,
+    "wxy": 0.55,
+    "bias": -0.12
+  }
+}

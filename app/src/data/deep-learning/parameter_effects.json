@@ -1,0 +1,50 @@
+[
+  {
+    "id": "instant_kernel",
+    "parameter": "Kernel Size",
+    "setting": "3x3 -> 5x5",
+    "expected_effect": "Feature map gets smoother and less localized.",
+    "visual_signal": "Thicker activations and reduced sharp edges.",
+    "category": "instant_visual"
+  },
+  {
+    "id": "instant_stride",
+    "parameter": "Stride",
+    "setting": "1 -> 2",
+    "expected_effect": "Output spatial map shrinks faster.",
+    "visual_signal": "Feature map grid becomes smaller immediately.",
+    "category": "instant_visual"
+  },
+  {
+    "id": "instant_activation",
+    "parameter": "Activation",
+    "setting": "Sigmoid -> ReLU",
+    "expected_effect": "Sparse, stronger positive activations.",
+    "visual_signal": "More zeroed cells and brighter active cells.",
+    "category": "instant_visual"
+  },
+  {
+    "id": "pre_lr",
+    "parameter": "Learning Rate",
+    "setting": "0.001 -> 0.01",
+    "expected_effect": "Faster initial convergence, risk of instability later.",
+    "visual_signal": "Loss curve drops early then oscillates.",
+    "category": "precomputed_effect"
+  },
+  {
+    "id": "pre_depth",
+    "parameter": "Depth",
+    "setting": "2 blocks -> 4 blocks",
+    "expected_effect": "Higher representation power and accuracy ceiling.",
+    "visual_signal": "Validation accuracy peak shifts upward.",
+    "category": "precomputed_effect"
+  },
+  {
+    "id": "pre_dropout",
+    "parameter": "Dropout",
+    "setting": "0.1 -> 0.4",
+    "expected_effect": "Lower overfit, slightly slower fit.",
+    "visual_signal": "Train/val gap narrows across epochs.",
+    "category": "precomputed_effect"
+  }
+]

@@ -1,0 +1,50 @@
+{
+  "input_features": ["Ear Shape", "Whisker Density", "Fur Texture", "Face Ratio"],
+  "input_values": [0.82, 0.64, 0.71, 0.58],
+  "base_hidden_weights": [
+    [0.44, -0.21, 0.35, 0.19],
+    [0.12, 0.38, -0.17, 0.31],
+    [-0.28, 0.43, 0.22, 0.16],
+    [0.31, -0.24, 0.27, 0.09]
+  ],
+  "base_hidden_bias": [0.11, -0.08, 0.07, 0.12],
+  "output_weights": [
+    [0.53, 0.22, -0.14, 0.28],
+    [-0.34, 0.17, 0.39, 0.26]
+  ],
+  "output_bias": [0.12, -0.06],
+  "activation_point": {
+    "0": { "z": 0.421, "a": 0.421 },
+    "1": { "z": 0.368, "a": 0.368 },
+    "2": { "z": 0.452, "a": 0.452 },
+    "3": { "z": 0.407, "a": 0.407 }
+  },
+  "output_confidence_gap": {
+    "0": 0.142,
+    "1": 0.188,
+    "2": 0.236,
+    "3": 0.272
+  },
+  "step_deltas": {
+    "0": [
+      { "metric": "z", "previous": 0.244, "current": 0.421, "delta": 0.177 },
+      { "metric": "activation", "previous": 0.196, "current": 0.421, "delta": 0.225 },
+      { "metric": "confidence", "previous": 0.084, "current": 0.142, "delta": 0.058 }
+    ],
+    "1": [
+      { "metric": "z", "previous": 0.421, "current": 0.368, "delta": -0.053 },
+      { "metric": "activation", "previous": 0.421, "current": 0.368, "delta": -0.053 },
+      { "metric": "confidence", "previous": 0.142, "current": 0.188, "delta": 0.046 }
+    ],
+    "2": [
+      { "metric": "z", "previous": 0.368, "current": 0.452, "delta": 0.084 },
+      { "metric": "activation", "previous": 0.368, "current": 0.452, "delta": 0.084 },
+      { "metric": "confidence", "previous": 0.188, "current": 0.236, "delta": 0.048 }
+    ],
+    "3": [
+      { "metric": "z", "previous": 0.452, "current": 0.407, "delta": -0.045 },
+      { "metric": "activation", "previous": 0.452, "current": 0.407, "delta": -0.045 },
+      { "metric": "confidence", "previous": 0.236, "current": 0.272, "delta": 0.036 }
+    ]
+  }
+}

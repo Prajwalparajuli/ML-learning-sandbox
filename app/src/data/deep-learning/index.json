@@ -1,0 +1,92 @@
+{
+  "defaults": {
+    "sample_image_id": 0,
+    "default_filter": "horizontal_edge"
+  },
+  "images": [
+    {
+      "id": 0,
+      "key": "cat_01",
+      "label": "Cat 01",
+      "class": "cat",
+      "file": "assets/cat_01.jpg"
+    },
+    {
+      "id": 1,
+      "key": "cat_02",
+      "label": "Cat 02",
+      "class": "cat",
+      "file": "assets/cat_02.jpg"
+    },
+    {
+      "id": 2,
+      "key": "cat_03",
+      "label": "Cat 03",
+      "class": "cat",
+      "file": "assets/cat_03.jpg"
+    },
+    {
+      "id": 3,
+      "key": "cat_04",
+      "label": "Cat 04",
+      "class": "cat",
+      "file": "assets/cat_04.jpg"
+    },
+    {
+      "id": 4,
+      "key": "cat_05",
+      "label": "Cat 05",
+      "class": "cat",
+      "file": "assets/cat_05.jpg"
+    },
+    {
+      "id": 5,
+      "key": "cat_06",
+      "label": "Cat 06",
+      "class": "cat",
+      "file": "assets/cat_06.jpg"
+    },
+    {
+      "id": 6,
+      "key": "dog_01",
+      "label": "Dog 01",
+      "class": "dog",
+      "file": "assets/dog_01.jpg"
+    },
+    {
+      "id": 7,
+      "key": "dog_02",
+      "label": "Dog 02",
+      "class": "dog",
+      "file": "assets/dog_02.jpg"
+    },
+    {
+      "id": 8,
+      "key": "dog_03",
+      "label": "Dog 03",
+      "class": "dog",
+      "file": "assets/dog_03.jpg"
+    },
+    {
+      "id": 9,
+      "key": "dog_04",
+      "label": "Dog 04",
+      "class": "dog",
+      "file": "assets/dog_04.jpg"
+    },
+    {
+      "id": 10,
+      "key": "dog_05",
+      "label": "Dog 05",
+      "class": "dog",
+      "file": "assets/dog_05.jpg"
+    },
+    {
+      "id": 11,
+      "key": "dog_06",
+      "label": "Dog 06",
+      "class": "dog",
+      "file": "assets/dog_06.jpg"
+    }
+  ]
+}

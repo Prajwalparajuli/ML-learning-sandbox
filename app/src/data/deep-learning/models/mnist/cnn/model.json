@@ -1,0 +1,22 @@
+{
+  "format": "sandbox-json-model",
+  "kind": "mnist_cnn",
+  "input_size": [
+    28,
+    28,
+    1
+  ],
+  "conv_kernels": 48,
+  "kernel_size": [
+    3,
+    3
+  ],
+  "pool": [
+    2,
+    2
+  ],
+  "feature_size": 8112,
+  "output_size": 10,
+  "weights_file": "weights-shard1.json",
+  "version": 4
+}
