@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useModelStore } from '../store/modelStore';
 import { generateDataset, evaluateModelMetrics, fitRegressionModel, latexForModel, supports2D } from '../lib/dataUtils';
 import { DataControlPanel, ModelControlPanel } from '../components/ControlPanel/ControlPanel';
@@ -21,6 +21,22 @@ const LazyLearningInsights = lazy(() => import('../components/LearningInsights')
 const LazyClassicalContentPanel = lazy(() => import('../components/ClassicalContentPanel').then((m) => ({ default: m.ClassicalContentPanel })));
 const LazyScenarioMissions = lazy(() => import('../components/ScenarioMissions').then((m) => ({ default: m.ScenarioMissions })));
 const LazyDimensionalityReductionLab = lazy(() => import('../components/DimensionalityReductionLab').then((m) => ({ default: m.DimensionalityReductionLab })));
+
+const TOUR_STEPS = [
+  { selector: "[data-tour='mode-switch']", title: 'Task Mode', text: 'Switch between regression and classification workflows here.' },
+  { selector: "[data-tour='theme-toggle']", title: 'Theme & Tour', text: 'Use light/dark theme and replay this guided tour anytime.' },
+  { selector: "[data-tour='data-studio']", title: 'Data Studio', text: 'Start here: choose dataset, feature space, and sampling settings.' },
+  { selector: "[data-tour='model-studio']", title: 'Model Studio', text: 'Choose model family, model, and hyperparameters here.' },
+  { selector: "[data-tour='hero-actions']", title: 'Live Controls', text: 'Quick actions for resampling, OLS overlay, and equation view.' },
+  { selector: "[data-tour='visualization']", title: 'Visualization', text: 'Watch boundaries and fit behavior update from your changes.' },
+  { selector: "[data-tour='metrics']", title: 'Metrics', text: 'Confirm impact with objective metrics and the delta caption.' },
+  { selector: "[data-tour='lens']", title: 'Bias-Variance Lens', text: 'Inspect complexity tradeoffs and error patterns.' },
+  { selector: "[data-tour='diagnostics']", title: 'Diagnostics', text: 'Use confusion/residual diagnostics to validate model behavior.' },
+  { selector: "[data-tour='dim-lab']", title: 'Dimensionality Lab', text: 'Compare PCR/PLS and inspect PCA variance/scatter views.' },
+  { selector: "[data-tour='missions']", title: 'Learning Missions', text: 'Apply challenge presets with completion criteria.' },
+  { selector: "[data-tour='playbook']", title: 'Playbook', text: 'Use guided “try next” actions tied to your model context.' },
+  { selector: "[data-tour='export']", title: 'Python Export', text: 'Export the current sandbox configuration to Python code.' },
+] as const;
 
 export function InteractiveModelTemplate() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -121,7 +137,9 @@ export function InteractiveModelTemplate() {
   }, [error]);
 
   useEffect(() => {
-    if (viewMode === 'deep_dive') setFocusPanel('none');
+    if (viewMode !== 'deep_dive') return;
+    const timer = window.setTimeout(() => setFocusPanel('none'), 0);
+    return () => window.clearTimeout(timer);
   }, [viewMode]);
 
   useEffect(() => {
@@ -190,21 +208,8 @@ export function InteractiveModelTemplate() {
     if ((dataset === 'noisy' || dataset === 'outliers') && modelType === 'ols') return 'Likely high variance';
     return 'Good match';
   }, [taskMode, featureMode, modelType, dataset]);
-  const tourSteps = [
-    { selector: "[data-tour='mode-switch']", title: 'Task Mode', text: 'Switch between regression and classification workflows here.' },
-    { selector: "[data-tour='theme-toggle']", title: 'Theme & Tour', text: 'Use light/dark theme and replay this guided tour anytime.' },
-    { selector: "[data-tour='data-studio']", title: 'Data Studio', text: 'Start here: choose dataset, feature space, and sampling settings.' },
-    { selector: "[data-tour='model-studio']", title: 'Model Studio', text: 'Choose model family, model, and hyperparameters here.' },
-    { selector: "[data-tour='hero-actions']", title: 'Live Controls', text: 'Quick actions for resampling, OLS overlay, and equation view.' },
-    { selector: "[data-tour='visualization']", title: 'Visualization', text: 'Watch boundaries and fit behavior update from your changes.' },
-    { selector: "[data-tour='metrics']", title: 'Metrics', text: 'Confirm impact with objective metrics and the delta caption.' },
-    { selector: "[data-tour='lens']", title: 'Bias-Variance Lens', text: 'Inspect complexity tradeoffs and error patterns.' },
-    { selector: "[data-tour='diagnostics']", title: 'Diagnostics', text: 'Use confusion/residual diagnostics to validate model behavior.' },
-    { selector: "[data-tour='dim-lab']", title: 'Dimensionality Lab', text: 'Compare PCR/PLS and inspect PCA variance/scatter views.' },
-    { selector: "[data-tour='missions']", title: 'Learning Missions', text: 'Apply challenge presets with completion criteria.' },
-    { selector: "[data-tour='playbook']", title: 'Playbook', text: 'Use guided “try next” actions tied to your model context.' },
-    { selector: "[data-tour='export']", title: 'Python Export', text: 'Export the current sandbox configuration to Python code.' },
-  ] as const;
+  const staggerStyle = (index: number): CSSProperties =>
+    ({ ['--stagger-index' as const]: index }) as CSSProperties;
 
   const findVisibleTourTarget = (selector: string): Element | null => {
     const nodes = Array.from(document.querySelectorAll(selector));
@@ -217,23 +222,29 @@ export function InteractiveModelTemplate() {
   useEffect(() => {
     const seen = window.localStorage.getItem('mls_tour_seen');
     if (!seen) {
-      setOnboardingState('in_progress');
-      setTourStep(0);
+      const timer = window.setTimeout(() => {
+        setOnboardingState('in_progress');
+        setTourStep(0);
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
+    return undefined;
   }, [setOnboardingState]);
 
   useEffect(() => {
     if (onboardingState !== 'in_progress') {
-      setTourRect(null);
-      return;
+      const clearTimer = window.setTimeout(() => setTourRect(null), 0);
+      return () => window.clearTimeout(clearTimer);
     }
-    setRenderLensSection(true);
-    setRenderDiagnosticsPanel(true);
-    setRenderDimReductionSection(true);
-    setRenderMissionsSection(true);
-    setRenderPlaybookSection(true);
-    setRenderExportSection(true);
-    const step = tourSteps[Math.max(0, Math.min(tourStep, tourSteps.length - 1))];
+    const renderTimer = window.setTimeout(() => {
+      setRenderLensSection(true);
+      setRenderDiagnosticsPanel(true);
+      setRenderDimReductionSection(true);
+      setRenderMissionsSection(true);
+      setRenderPlaybookSection(true);
+      setRenderExportSection(true);
+    }, 0);
+    const step = TOUR_STEPS[Math.max(0, Math.min(tourStep, TOUR_STEPS.length - 1))];
     const updateRect = () => {
       const visibleNode = findVisibleTourTarget(step.selector);
       if (!visibleNode) {
@@ -247,6 +258,7 @@ export function InteractiveModelTemplate() {
     window.addEventListener('scroll', updateRect, true);
     const raf = window.requestAnimationFrame(updateRect);
     return () => {
+      window.clearTimeout(renderTimer);
       window.cancelAnimationFrame(raf);
       window.removeEventListener('resize', updateRect);
       window.removeEventListener('scroll', updateRect, true);
@@ -255,7 +267,7 @@ export function InteractiveModelTemplate() {
 
   useEffect(() => {
     if (onboardingState !== 'in_progress') return;
-    const step = tourSteps[Math.max(0, Math.min(tourStep, tourSteps.length - 1))];
+    const step = TOUR_STEPS[Math.max(0, Math.min(tourStep, TOUR_STEPS.length - 1))];
     const target = findVisibleTourTarget(step.selector);
     if (!target) return;
     target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
@@ -263,13 +275,14 @@ export function InteractiveModelTemplate() {
 
   useEffect(() => {
     if (viewMode !== 'deep_dive') return;
-    setRenderLensSection(true);
+    const startTimer = window.setTimeout(() => setRenderLensSection(true), 0);
     const t1 = window.setTimeout(() => setRenderDiagnosticsPanel(true), 80);
     const t2 = window.setTimeout(() => setRenderDimReductionSection(true), 140);
     const t3 = window.setTimeout(() => setRenderMissionsSection(true), 200);
     const t4 = window.setTimeout(() => setRenderPlaybookSection(true), 260);
     const t5 = window.setTimeout(() => setRenderExportSection(true), 320);
     return () => {
+      window.clearTimeout(startTimer);
       window.clearTimeout(t1);
       window.clearTimeout(t2);
       window.clearTimeout(t3);
@@ -284,7 +297,7 @@ export function InteractiveModelTemplate() {
   const renderDiagnosticsSection = (compact = false, forceVisible = false) => {
     if (taskMode === 'regression' && (showAssumptions || forceVisible)) {
       return (
-        <section className={`material-panel ${compact ? 'p-2.5' : 'p-3'} motion-stagger`} style={{ ['--stagger-index' as any]: 2 }}>
+        <section className={`material-panel ${compact ? 'p-2.5' : 'p-3'} motion-stagger`} style={staggerStyle(2)}>
           <Suspense fallback={lazyFallback}>
             <LazyAssumptionChecker sidebarCollapsed={sidebarCollapsed} compact={compact} />
           </Suspense>
@@ -293,7 +306,7 @@ export function InteractiveModelTemplate() {
     }
     if (taskMode === 'classification' && (showClassificationDiagnostics || forceVisible)) {
       return (
-        <section className={`material-panel ${compact ? 'p-2.5' : 'p-3'} motion-stagger`} style={{ ['--stagger-index' as any]: 2 }}>
+        <section className={`material-panel ${compact ? 'p-2.5' : 'p-3'} motion-stagger`} style={staggerStyle(2)}>
           <Suspense fallback={lazyFallback}>
             <LazyClassificationDiagnostics sidebarCollapsed={sidebarCollapsed} compact={compact} />
           </Suspense>
@@ -469,7 +482,7 @@ export function InteractiveModelTemplate() {
 
           {/* Center Pane: Display */}
           <div className="space-y-3">
-            <section className="material-panel p-3 motion-stagger premium-stage" style={{ ['--stagger-index' as any]: 0 }}>
+            <section className="material-panel p-3 motion-stagger premium-stage" style={staggerStyle(0)}>
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
                 <div>
                   <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
@@ -579,7 +592,7 @@ export function InteractiveModelTemplate() {
             </section>
 
             {/* Visualizer */}
-            <section data-tour="visualization" className="material-panel p-3 motion-stagger" style={{ ['--stagger-index' as any]: 1 }}>
+            <section data-tour="visualization" className="material-panel p-3 motion-stagger" style={staggerStyle(1)}>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="panel-title">
                   Visualization
@@ -597,7 +610,7 @@ export function InteractiveModelTemplate() {
               </p>
             </section>
 
-            <section data-tour="metrics" className="material-panel p-3 motion-stagger" style={{ ['--stagger-index' as any]: 2 }}>
+            <section data-tour="metrics" className="material-panel p-3 motion-stagger" style={staggerStyle(2)}>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="panel-title">Metrics</h3>
                 <span className="text-xs text-text-tertiary flex items-center gap-1.5">
@@ -609,7 +622,7 @@ export function InteractiveModelTemplate() {
             </section>
 
             {viewMode === 'focus' && (
-              <section className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
+              <section className="material-panel p-2.5 motion-stagger" style={staggerStyle(3)}>
                 <div className="flex items-center justify-between mb-1.5">
                   <p className="panel-title">Learning Tools</p>
                   <span className="text-[11px] text-text-tertiary">Open one panel at a time</span>
@@ -646,7 +659,7 @@ export function InteractiveModelTemplate() {
             )}
 
             {viewMode === 'focus' && focusPanel === 'lens' && (
-              <section className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
+              <section className="material-panel p-2.5 motion-stagger" style={staggerStyle(3)}>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="panel-title">Bias-Variance Lens</h3>
                 </div>
@@ -657,14 +670,14 @@ export function InteractiveModelTemplate() {
             )}
             {viewMode === 'focus' && focusPanel === 'diagnostics' && renderDiagnosticsSection(true, true)}
             {viewMode === 'focus' && focusPanel === 'playbook' && (
-              <section className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
+              <section className="material-panel p-2.5 motion-stagger" style={staggerStyle(3)}>
                 <Suspense fallback={lazyFallback}>
                   <LazyClassicalContentPanel compact />
                 </Suspense>
               </section>
             )}
             {viewMode === 'focus' && focusPanel === 'missions' && featureFlags.ff_learning_missions && (
-              <section className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
+              <section className="material-panel p-2.5 motion-stagger" style={staggerStyle(3)}>
                 <Suspense fallback={lazyFallback}>
                   <LazyScenarioMissions compact />
                 </Suspense>
@@ -672,7 +685,7 @@ export function InteractiveModelTemplate() {
             )}
 
             {viewMode === 'deep_dive' && renderLensSection && (
-              <section data-tour="lens" className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
+              <section data-tour="lens" className="material-panel p-2.5 motion-stagger" style={staggerStyle(3)}>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="panel-title">
                     Bias-Variance Lens
@@ -694,7 +707,7 @@ export function InteractiveModelTemplate() {
             )}
 
             {viewMode === 'deep_dive' && renderDimReductionSection && taskMode === 'regression' && dimensionalityCompare && (
-              <section data-tour="dim-lab" className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
+              <section data-tour="dim-lab" className="material-panel p-2.5 motion-stagger" style={staggerStyle(3)}>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="panel-title">Dimensionality Reduction Lab</h3>
                   <span className="text-[11px] text-text-tertiary">PCR and PLS on current data split</span>
@@ -734,7 +747,7 @@ export function InteractiveModelTemplate() {
             )}
 
             {viewMode === 'deep_dive' && renderMissionsSection && featureFlags.ff_learning_missions && (
-              <section data-tour="missions" className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
+              <section data-tour="missions" className="material-panel p-2.5 motion-stagger" style={staggerStyle(3)}>
                 <Suspense fallback={lazyFallback}>
                   <LazyScenarioMissions />
                 </Suspense>
@@ -742,7 +755,7 @@ export function InteractiveModelTemplate() {
             )}
 
             {viewMode === 'deep_dive' && renderPlaybookSection && (
-              <section data-tour="playbook" className="material-panel p-2.5 motion-stagger" style={{ ['--stagger-index' as any]: 3 }}>
+              <section data-tour="playbook" className="material-panel p-2.5 motion-stagger" style={staggerStyle(3)}>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="panel-title">Classical ML Playbook</h3>
                   <div className="text-xs text-text-tertiary">Action-focused learning cues</div>
@@ -755,7 +768,7 @@ export function InteractiveModelTemplate() {
 
             {viewMode === 'deep_dive' && renderExportSection && (
               <div className="grid grid-cols-1 gap-3">
-                <section data-tour="export" className="material-panel p-3 motion-stagger" style={{ ['--stagger-index' as any]: 5 }}>
+                <section data-tour="export" className="material-panel p-3 motion-stagger" style={staggerStyle(5)}>
                   <h3 className="panel-title mb-2">
                     Python Export
                   </h3>
@@ -847,17 +860,17 @@ export function InteractiveModelTemplate() {
           >
             <div className="flex items-center justify-between mb-1">
               <p className="panel-title">Guided Tour</p>
-              <span className="text-[11px] text-text-tertiary">{tourStep + 1}/{tourSteps.length}</span>
+              <span className="text-[11px] text-text-tertiary">{tourStep + 1}/{TOUR_STEPS.length}</span>
             </div>
-            <p className="text-sm font-medium text-text-primary">{tourSteps[tourStep].title}</p>
-            <p className="text-xs text-text-secondary mt-1">{tourSteps[tourStep].text}</p>
+            <p className="text-sm font-medium text-text-primary">{TOUR_STEPS[tourStep].title}</p>
+            <p className="text-xs text-text-secondary mt-1">{TOUR_STEPS[tourStep].text}</p>
             <div className="flex gap-1.5 mt-2">
               <button type="button" className="quick-action" onClick={() => setTourStep((step) => Math.max(0, step - 1))}>Back</button>
               <button
                 type="button"
                 className="quick-action quick-action-active"
                 onClick={() => {
-                  if (tourStep >= tourSteps.length - 1) {
+                  if (tourStep >= TOUR_STEPS.length - 1) {
                     setOnboardingState('completed');
                     window.localStorage.setItem('mls_tour_seen', '1');
                     return;
@@ -865,7 +878,7 @@ export function InteractiveModelTemplate() {
                   setTourStep((step) => step + 1);
                 }}
               >
-                {tourStep >= tourSteps.length - 1 ? 'Finish' : 'Next'}
+                {tourStep >= TOUR_STEPS.length - 1 ? 'Finish' : 'Next'}
               </button>
               <button
                 type="button"

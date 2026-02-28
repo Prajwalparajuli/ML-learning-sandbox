@@ -153,7 +153,7 @@ export function MlpExplorerStatic({
       stepMath,
       stepDeltas,
     };
-  }, [activation, clampedStep, hiddenLayers, hiddenNodeCount]);
+  }, [activation, baseInput, clampedStep, hiddenLayers, hiddenNodeCount]);
 
   const narration = mlpNarration[Math.min(mlpNarration.length - 1, clampedStep)] ?? null;
 

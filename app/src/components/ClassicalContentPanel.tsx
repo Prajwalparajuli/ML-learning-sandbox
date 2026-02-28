@@ -31,7 +31,8 @@ export function ClassicalContentPanel({ compact = false }: ClassicalContentPanel
   const activeModel = modelContentMap[modelType];
   const activeResampling = resamplingMeta.find((item) => item.implementedModes.includes(evaluationMode));
   const primaryMetric = selectedMetrics[0];
-  const tryNextActionsAll = taskMode === 'classification'
+  const tryNextActionsAll = useMemo(
+    () => (taskMode === 'classification'
     ? [
       {
         id: 'cls-threshold-shift',
@@ -157,7 +158,20 @@ export function ClassicalContentPanel({ compact = false }: ClassicalContentPanel
           regenerateDataset();
         },
       },
-    ];
+    ]),
+    [
+      activeResampling,
+      regenerateDataset,
+      setCvFolds,
+      setDataset,
+      setEvaluationMode,
+      setModelType,
+      setParam,
+      setTaskMode,
+      setTestRatio,
+      taskMode,
+    ]
+  );
 
   const tryNextActions = useMemo(() => {
     const strict = tryNextActionsAll.filter((action) => action.models.includes(modelType));

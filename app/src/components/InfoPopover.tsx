@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Info } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
@@ -14,14 +14,14 @@ export function InfoPopover({ label, what, why, tryNext, className }: InfoPopove
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
 
-  useEffect(() => {
-    if (!open) {
-      setPinned(false);
-    }
-  }, [open]);
-
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setPinned(false);
+      }}
+    >
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -52,4 +52,3 @@ export function InfoPopover({ label, what, why, tryNext, className }: InfoPopove
     </Popover>
   );
 }
-

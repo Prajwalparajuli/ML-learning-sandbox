@@ -182,8 +182,11 @@ export function MlpInferenceExplorer({
   }, [hasSignal, image, inferenceMode, model]);
 
   useEffect(() => {
-    setHoveredHidden(null);
-    setPinnedHidden(null);
+    const clearTimer = window.setTimeout(() => {
+      setHoveredHidden(null);
+      setPinnedHidden(null);
+    }, 0);
+    return () => window.clearTimeout(clearTimer);
   }, [predictNonce]);
 
   const activeHidden = pinnedHidden ?? hoveredHidden;
@@ -383,7 +386,11 @@ export function MlpInferenceExplorer({
     return candidates
       .sort((left, right) => right.score - left.score)
       .slice(0, 5)
-      .map(({ score: _score, ...path }) => path);
+      .map((path) => {
+        const trimmed = { ...path };
+        delete (trimmed as { score?: number }).score;
+        return trimmed as GhostPath;
+      });
   }, [analysis, hiddenPositions, inputPositions, outputPositions]);
 
   if (!analysis) {

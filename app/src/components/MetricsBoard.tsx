@@ -100,36 +100,39 @@ export function MetricsBoard({ compact = false }: MetricsBoardProps) {
       prevMetricsRef.current = metrics;
       return;
     }
+    let nextCaption = 'Adjust one control to see what changed.';
     if (taskMode === 'regression') {
       const r2Delta = metrics.r2 - prev.r2;
       const rmseDelta = metrics.rmse - prev.rmse;
       if (r2Delta > 0.01 && rmseDelta < -0.01) {
-        setDeltaCaption('Fit improved: explained variance rose while error fell.');
+        nextCaption = 'Fit improved: explained variance rose while error fell.';
       } else if (r2Delta < -0.01 && rmseDelta > 0.01) {
-        setDeltaCaption('Generalization weakened: variance explained dropped and error increased.');
+        nextCaption = 'Generalization weakened: variance explained dropped and error increased.';
       } else if (Math.abs(r2Delta) < 0.005 && Math.abs(rmseDelta) < 0.005) {
-        setDeltaCaption('Change impact is small: model behavior is currently stable.');
+        nextCaption = 'Change impact is small: model behavior is currently stable.';
       } else if (r2Delta > 0 && rmseDelta > 0) {
-        setDeltaCaption('Tradeoff detected: fit score improved but absolute errors rose on this split.');
+        nextCaption = 'Tradeoff detected: fit score improved but absolute errors rose on this split.';
       } else {
-        setDeltaCaption('Bias-variance balance shifted; check diagnostics before locking this setting.');
+        nextCaption = 'Bias-variance balance shifted; check diagnostics before locking this setting.';
       }
     } else {
       const recallDelta = metrics.recall - prev.recall;
       const precisionDelta = metrics.precision - prev.precision;
       if (recallDelta > 0.01 && precisionDelta < -0.01) {
-        setDeltaCaption('Boundary became more permissive: recall rose while precision fell.');
+        nextCaption = 'Boundary became more permissive: recall rose while precision fell.';
       } else if (recallDelta < -0.01 && precisionDelta > 0.01) {
-        setDeltaCaption('Boundary became more selective: precision improved while recall dropped.');
+        nextCaption = 'Boundary became more selective: precision improved while recall dropped.';
       } else if (metrics.f1 - prev.f1 > 0.01) {
-        setDeltaCaption('Class separation improved: F1 increased with the latest change.');
+        nextCaption = 'Class separation improved: F1 increased with the latest change.';
       } else if (Math.abs(metrics.f1 - prev.f1) < 0.005) {
-        setDeltaCaption('Little movement in class quality metrics from the last adjustment.');
+        nextCaption = 'Little movement in class quality metrics from the last adjustment.';
       } else {
-        setDeltaCaption('Threshold-quality tradeoff shifted; inspect confidence diagnostics next.');
+        nextCaption = 'Threshold-quality tradeoff shifted; inspect confidence diagnostics next.';
       }
     }
+    const timer = window.setTimeout(() => setDeltaCaption(nextCaption), 0);
     prevMetricsRef.current = metrics;
+    return () => window.clearTimeout(timer);
   }, [metrics, taskMode]);
 
   const regressionCards = [

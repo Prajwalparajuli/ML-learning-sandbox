@@ -399,15 +399,18 @@ export function CnnInferenceExplorer({
   }, [inference, lastStageIndex, layerPlaying, maxScan, stage]);
 
   useEffect(() => {
-    setStage(1);
-    setScanStep(0);
-    setWindowPlaying(false);
-    setLayerPlaying(false);
-    setHasInteracted(false);
-    setKernelScale(1);
-    setStride(1);
-    setReluThreshold(0);
-    setPoolMode('max');
+    const resetTimer = window.setTimeout(() => {
+      setStage(1);
+      setScanStep(0);
+      setWindowPlaying(false);
+      setLayerPlaying(false);
+      setHasInteracted(false);
+      setKernelScale(1);
+      setStride(1);
+      setReluThreshold(0);
+      setPoolMode('max');
+    }, 0);
+    return () => window.clearTimeout(resetTimer);
   }, [predictNonce]);
 
   return (

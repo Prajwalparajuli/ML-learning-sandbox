@@ -378,7 +378,7 @@ function computePcaComponents(xMatrix: number[][], k: number): { components: num
   const p = xMatrix[0]?.length ?? 0;
   const means = Array.from({ length: p }, (_, j) => mean(xMatrix.map((row) => row[j])));
   if (p === 0) return { components: [], means };
-  let cov = covarianceMatrix(xMatrix);
+  const cov = covarianceMatrix(xMatrix);
   const components: number[][] = [];
   const compCount = Math.max(1, Math.min(k, p));
   const random = createSeededRandom(p * 37 + xMatrix.length * 11);

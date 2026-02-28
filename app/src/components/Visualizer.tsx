@@ -1,5 +1,6 @@
 import Plot from 'react-plotly.js';
 import { useMemo, useState } from 'react';
+import type { Data as PlotlyData } from 'plotly.js';
 import { useModelStore } from '../store/modelStore';
 import { fitRegressionModel, splitDataset } from '../lib/dataUtils';
 import { useTheme } from 'next-themes';
@@ -213,7 +214,7 @@ export function Visualizer({ sidebarCollapsed = false }: VisualizerProps) {
                 },
                 name: `Class 1 ${evalLabel} Wrong`,
               },
-            ] as any[]}
+            ] as PlotlyData[]}
             layout={{
               margin: { l: 44, r: 12, t: 16, b: 46 },
               paper_bgcolor: 'rgba(0,0,0,0)',
@@ -281,7 +282,7 @@ export function Visualizer({ sidebarCollapsed = false }: VisualizerProps) {
     const surfaceY = Array.from({ length: gridSize }, (_, i) => minX2 + ((maxX2 - minX2) * i) / (gridSize - 1));
     const surfaceZ = surfaceY.map((fy) => surfaceX.map((fx) => activeFit.predict([fx, fy])));
 
-    const threeDData: any[] = [
+    const threeDData: PlotlyData[] = [
       {
         x: surfaceX,
         y: surfaceY,
@@ -359,7 +360,7 @@ export function Visualizer({ sidebarCollapsed = false }: VisualizerProps) {
     );
   }
 
-  const plotData: any[] = [
+  const plotData: PlotlyData[] = [
     {
       x: lineX,
       y: bandLower,

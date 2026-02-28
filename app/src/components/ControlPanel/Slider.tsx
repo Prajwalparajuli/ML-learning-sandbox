@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
 interface SliderProps {
   label: string;
@@ -16,6 +16,9 @@ export function Slider({ label, value, min, max, step, onChange }: SliderProps) 
   const [active, setActive] = useState(false);
   const [draft, setDraft] = useState(value);
   const debounceRef = useRef<number | null>(null);
+  const rangeStyle = {
+    ['--range-progress' as const]: `${progress}%`,
+  } as CSSProperties;
 
   useEffect(() => {
     setDraft(value);
@@ -58,7 +61,7 @@ export function Slider({ label, value, min, max, step, onChange }: SliderProps) 
           debounceRef.current = window.setTimeout(() => onChange(next), 100);
         }}
         className="premium-range w-full accent-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 rounded-md"
-        style={{ ['--range-progress' as any]: `${progress}%` }}
+        style={rangeStyle}
       />
       <div className="flex justify-between text-xs text-text-tertiary">
         <span>{min}</span>

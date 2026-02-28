@@ -43,7 +43,7 @@ function covariance(x: number[][]): { cov: number[][]; means: number[] } {
 function topComponents(x: number[][], k = 2): { components: number[][]; eigenvalues: number[]; means: number[] } {
   const p = x[0]?.length ?? 0;
   const { cov, means } = covariance(x);
-  let c = cov.map((row) => [...row]);
+  const c = cov.map((row) => [...row]);
   const components: number[][] = [];
   const eigenvalues: number[] = [];
   const count = Math.max(1, Math.min(k, p));
@@ -154,4 +154,3 @@ export function DimensionalityReductionLab() {
     </div>
   );
 }
-
